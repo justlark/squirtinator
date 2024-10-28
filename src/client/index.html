@@ -8,13 +8,14 @@
     <link rel="stylesheet" type="text/css" href="/index.css" />
   </head>
   <body>
-    <h1>Squirtinator Remote</h1>
-    <main id="remote">
+    <h1 id="site-title">Squirtinator Remote</h1>
+    <main id="remote" aria-labelledby="site-title">
       <button id="now-button">NOW</button>
       <button id="auto-button" role="switch" aria-checked="false">AUTO</button>
       <a id="settings-link" class="nav-button" href="/settings">
         <span>SETTINGS</span>
         <svg
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           width="30"
           height="30"
