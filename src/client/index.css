@@ -1,0 +1,127 @@
+:root {
+  /* Catppuccin Mocha */
+  --catppuccin-rosewater: #f5e0dc;
+  --catppuccin-flamingo: #f2cdcd;
+  --catppuccin-pink: #f5c2e7;
+  --catppuccin-mauve: #cba6f7;
+  --catppuccin-red: #f38ba8;
+  --catppuccin-maroon: #eba0ac;
+  --catppuccin-peach: #fab387;
+  --catppuccin-yellow: #f9e2af;
+  --catppuccin-green: #a6e3a1;
+  --catppuccin-teal: #94e2d5;
+  --catppuccin-sky: #89dceb;
+  --catppuccin-sapphire: #74c7ec;
+  --catppuccin-blue: #89b4fa;
+  --catppuccin-lavender: #b4befe;
+  --catppuccin-text: #cdd6f4;
+  --catppuccin-subtext1: #bac2de;
+  --catppuccin-subtext0: #a6adc8;
+  --catppuccin-overlay2: #9399b2;
+  --catppuccin-overlay1: #7f849c;
+  --catppuccin-overlay0: #6c7086;
+  --catppuccin-surface2: #585b70;
+  --catppuccin-surface1: #45475a;
+  --catppuccin-surface0: #313244;
+  --catppuccin-base: #1e1e2e;
+  --catppuccin-mantle: #181825;
+  --catppuccin-crust: #11111b;
+
+  /* Semantic colors */
+  --color-fg: var(--catppuccin-text);
+  --color-bg: var(--catppuccin-mantle);
+  --color-border: var(--catppuccin-overlay1);
+  --color-active: var(--catppuccin-base);
+
+  /* Styling */
+  --font-size-base: 16px;
+  --border-radius: 4px;
+  --border-width: 1px;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  font-family: "Roboto", sans-serif;
+  font-size: var(--font-size-base);
+  max-width: 25rem;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+  height: 100%;
+}
+
+body > h1 {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  body > h1 {
+    margin-bottom: 4rem;
+  }
+}
+
+button {
+  font-family: "Roboto", sans-serif;
+  font-size: var(--font-size-base);
+  font-weight: bold;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius);
+  color: var(--color-fg);
+  background-color: transparent;
+  padding: 1rem;
+}
+
+button:hover {
+  cursor: pointer;
+  background-color: var(--color-active);
+}
+
+button:active {
+  background-color: var(--color-active);
+}
+
+.switch {
+  font-weight: bold;
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+#remote > * {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+#remote {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+#now-button {
+  flex-grow: 1;
+  max-height: 50%;
+}
+
+@media (min-width: 768px) {
+  #now-button {
+    max-height: 10rem;
+  }
+}
+
+#auto-switch {
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius);
+}
+
+#now-button,
+#auto-switch {
+  font-size: 1.2rem;
+}
