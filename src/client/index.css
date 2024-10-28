@@ -93,9 +93,34 @@ button[role="switch"][aria-checked="true"] {
   background-color: var(--color-active);
 }
 
+.nav-button {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--color-fg);
+  text-decoration: none;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+}
+
+.nav-button:hover {
+  cursor: pointer;
+  background-color: var(--color-active);
+}
+
+.nav-button:active {
+  background-color: var(--color-active);
+}
+
 #remote > * {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+#remote > :is(button, .nav-button) {
+  font-size: 1.2rem;
 }
 
 #remote {
@@ -115,7 +140,7 @@ button[role="switch"][aria-checked="true"] {
   }
 }
 
-#now-button,
-#auto-button {
-  font-size: 1.2rem;
+#auto-button,
+#settings-link {
+  min-height: 5rem;
 }
