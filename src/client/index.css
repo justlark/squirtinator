@@ -30,6 +30,7 @@
   /* Semantic colors */
   --color-fg: var(--catppuccin-text);
   --color-bg: var(--catppuccin-mantle);
+  --color-primary: var(--catppuccin-teal);
   --color-border: var(--catppuccin-overlay1);
   --color-active: var(--catppuccin-base);
 
@@ -87,11 +88,9 @@ button:active {
   background-color: var(--color-active);
 }
 
-.switch {
-  font-weight: bold;
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
+button[role="switch"][aria-checked="true"] {
+  border-color: var(--color-primary);
+  background-color: var(--color-active);
 }
 
 #remote > * {
@@ -116,12 +115,7 @@ button:active {
   }
 }
 
-#auto-switch {
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius);
-}
-
 #now-button,
-#auto-switch {
+#auto-button {
   font-size: 1.2rem;
 }
