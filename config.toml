@@ -1,8 +1,8 @@
 [wifi]
 ssid = "SquirtinatorRemote"
 hidden = false
-# channel = 1
-# password = "correct horse battery staple"
+#channel = 1
+#password = "correct horse battery staple"
 
 [http]
 port = 80
