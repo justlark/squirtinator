@@ -27,6 +27,7 @@ pub struct IoConfig {
 
 impl IoConfig {
     pub fn pin(&self, pins: Pins) -> anyhow::Result<AnyOutputPin> {
+        // Only match on the GPIO pins that are available on the ESP32-C3-DevKit-RUST-1 board.
         Ok(match self.pin {
             0 => pins.gpio0.into(),
             1 => pins.gpio1.into(),
@@ -43,7 +44,7 @@ impl IoConfig {
             19 => pins.gpio19.into(),
             20 => pins.gpio20.into(),
             21 => pins.gpio21.into(),
-            _ => bail!("Invalid pin number: {}", self.pin),
+            _ => bail!("Invalid GPIO pin number: {}", self.pin),
         })
     }
 
