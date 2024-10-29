@@ -3,8 +3,10 @@ mod gpio;
 mod http;
 mod wifi;
 
+use std::sync::{Arc, Mutex};
+
 use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals};
-use gpio::GpioAction;
+use gpio::{Action, GpioAction};
 
 fn main() -> anyhow::Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -20,10 +22,13 @@ fn main() -> anyhow::Result<()> {
 
     let config = config::Config::read()?;
 
-    let action = GpioAction::new(config.io.pin(peripherals.pins)?, config.io.duration())?;
+    let action: Arc<Mutex<dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
+        config.io.pin(peripherals.pins)?,
+        config.io.duration(),
+    )?));
 
     let wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
-    let server = http::serve(&config.http, Box::new(action))?;
+    let server = http::serve(&config.http, Arc::clone(&action))?;
 
     // Keep the WiFi driver and HTTP server running indefinitely, beyond when the main function
     // returns.

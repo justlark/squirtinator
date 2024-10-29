@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use esp_idf_svc::{
     http::{
         server::{Configuration, EspHttpServer},
@@ -14,7 +16,7 @@ const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
 pub fn serve(
     config: &HttpConfig,
-    action: Box<dyn Action>,
+    action: Arc<Mutex<dyn Action>>,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let server_config = Configuration {
         http_port: config.port,
@@ -57,6 +59,16 @@ pub fn serve(
             let mut resp = req.into_response(200, None, &headers)?;
             resp.write_all(HTMX)?;
 
+            Ok(())
+        },
+    )?;
+
+    server.fn_handler(
+        "/api/activate",
+        Method::Post,
+        move |req| -> anyhow::Result<()> {
+            action.lock().unwrap().exec()?;
+            req.into_ok_response()?;
             Ok(())
         },
     )?;
