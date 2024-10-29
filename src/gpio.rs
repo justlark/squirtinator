@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::bail;
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Level, Pin, PinDriver};
 
 // An action to take when the toy is activated.
@@ -54,10 +55,15 @@ impl Action for GpioAction {
         // coming in until that's done. In user-facing terms, the user shouldn't be able to queue
         // up actions for the toy while it's already doing something.
         match self.channel.try_send(()) {
-            Err(TrySendError::Disconnected(_)) => Err(anyhow!(
-                "Communications channel with GPIO driver thread disconnected."
-            )),
-            _ => Ok(()),
+            Err(TrySendError::Disconnected(_)) => {
+                bail!("Communications channel with GPIO driver thread disconnected.")
+            }
+            Err(TrySendError::Full(())) => {
+                log::info!("Skipping a GPIO pulse because one is in progress.");
+            }
+            _ => {}
         }
+
+        Ok(())
     }
 }
