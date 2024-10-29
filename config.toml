@@ -6,3 +6,9 @@ hidden = false
 
 [http]
 port = 80
+
+[io]
+# The GPIO pin to send a pulse to when the toy is activated.
+pin = 0
+# The duration of the pulse, in milliseconds.
+duration = 100

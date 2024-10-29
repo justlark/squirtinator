@@ -16,9 +16,16 @@ pub struct HttpConfig {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct IoConfig {
+    pub pin: u8,
+    pub duration: u64,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Config {
     pub wifi: WifiConfig,
     pub http: HttpConfig,
+    pub io: IoConfig,
 }
 
 impl Config {
