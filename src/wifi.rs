@@ -50,5 +50,9 @@ pub fn start(
 
     wifi.start()?;
 
+    let ip_addr = wifi.wifi().ap_netif().get_ip_info()?.ip;
+
+    log::info!("WiFi started. IP address: {}", ip_addr);
+
     Ok(Box::new(esp_wifi))
 }
