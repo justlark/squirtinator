@@ -24,9 +24,11 @@ pub fn start(
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
 
+    let default_config = AccessPointConfiguration::default();
+
     // TODO: Read the WiFi password from NVS, falling back to the configured default password. This
     // allows for the password to be changed at runtime.
-    wifi.set_configuration(&Configuration::AccessPoint(AccessPointConfiguration {
+    let config = &Configuration::AccessPoint(AccessPointConfiguration {
         ssid: config
             .ssid
             .as_str()
@@ -43,8 +45,11 @@ pub fn start(
             .unwrap_or_default()
             .try_into()
             .map_err(|_| anyhow::anyhow!("WiFi password is too long."))?,
-        ..Default::default()
-    }))?;
+        channel: config.channel.unwrap_or(default_config.channel),
+        ..default_config
+    });
+
+    wifi.set_configuration(config)?;
 
     log::info!("Starting WiFi...");
 

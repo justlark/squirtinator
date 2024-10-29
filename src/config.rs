@@ -7,6 +7,7 @@ pub struct WifiConfig {
     pub ssid: String,
     pub password: Option<String>,
     pub hidden: bool,
+    pub channel: Option<u8>,
 }
 
 #[derive(Debug, Deserialize)]
