@@ -5,16 +5,11 @@ authors = ["Lark <lark@lark.gay>"]
 edition = "2021"
 resolver = "2"
 rust-version = "1.77"
-default-run = "squirtinator"
 
 [[bin]]
 name = "squirtinator"
 path = "src/main.rs"
 harness = false       # do not use the built in cargo test harness -> resolve rust-analyzer errors
-
-[[bin]]
-name = "dummy"
-path = "src/dummy.rs"
 
 [profile.release]
 opt-level = "s"
