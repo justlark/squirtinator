@@ -11,6 +11,10 @@ name = "squirtinator"
 path = "src/main.rs"
 harness = false       # do not use the built in cargo test harness -> resolve rust-analyzer errors
 
+[[bin]]
+name = "dummy"
+path = "src/dummy.rs"
+
 [profile.release]
 opt-level = "s"
 
@@ -38,4 +42,3 @@ esp-idf-svc = { version = "0.49", default-features = false }
 
 [build-dependencies]
 embuild = "0.32.0"
-
