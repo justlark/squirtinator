@@ -1,4 +1,7 @@
-use std::{sync::mpsc::SyncSender, time::Duration};
+use std::{
+    sync::mpsc::{SyncSender, TrySendError},
+    time::Duration,
+};
 
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Level, Pin, PinDriver};
 
@@ -7,7 +10,7 @@ pub trait Action: Send {
     fn exec(&mut self) -> anyhow::Result<()>;
 }
 
-// An `Action` which toggles a GPIO pin for a set duration in the background.
+// An `Action` which sends a "pulse" over a GPIO pin for a set duration in the background.
 pub struct GpioAction {
     channel: SyncSender<()>,
 }
@@ -16,7 +19,7 @@ impl GpioAction {
     pub fn new(pin: AnyOutputPin, duration: Duration) -> anyhow::Result<Self> {
         // We use a rendezvous channel so that messages to activate the pin don't get queued up. If
         // the user mashes the button to activate the toy, we want to discard all button presses
-        // that occur while the toy is actively, uh, doing its thing.
+        // that occur while the toy is actively doing something.
         let (sender, receiver) = std::sync::mpsc::sync_channel(0);
 
         let pin_num = pin.pin();
@@ -46,8 +49,15 @@ impl GpioAction {
 
 impl Action for GpioAction {
     fn exec(&mut self) -> anyhow::Result<()> {
-        // This is a rendezvous channel. If the toy is already active, don't do anything.
-        self.channel.try_send(())?;
-        Ok(())
+        // This is a rendezvous channel, and we're deliberately ignoring the error case in which
+        // the channel is full. If we're in the middle of a pulse, we want to discard any calls
+        // coming in until that's done. In user-facing terms, the user shouldn't be able to queue
+        // up actions for the toy while it's already doing something.
+        match self.channel.try_send(()) {
+            Err(TrySendError::Disconnected(_)) => Err(anyhow!(
+                "Communications channel with GPIO driver thread disconnected."
+            )),
+            _ => Ok(()),
+        }
     }
 }
