@@ -25,6 +25,9 @@ for instructions.
 
 ## Flashing
 
+Look at the [config.toml](./config.toml) file to see the available build-time
+config options. The default values should work for most cases.
+
 To build and flash the firmware with release optimizations, run:
 
 ```sh
