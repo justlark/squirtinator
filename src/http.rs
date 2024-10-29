@@ -42,5 +42,21 @@ pub fn serve(config: &HttpConfig) -> anyhow::Result<EspHttpServer<'static>> {
         },
     )?;
 
+    server.fn_handler(
+        "/assets/htmx.min.js",
+        Method::Get,
+        |req| -> anyhow::Result<()> {
+            let headers = [
+                ("Content-Type", "text/javascript"),
+                ("Content-Encoding", "gzip"),
+            ];
+
+            let mut resp = req.into_response(200, None, &headers)?;
+            resp.write_all(HTMX)?;
+
+            Ok(())
+        },
+    )?;
+
     Ok(server)
 }
