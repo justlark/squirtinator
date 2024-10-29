@@ -7,7 +7,7 @@ automatic modes of operation.
 
 ## Hardware
 
-This project uses the [Rust ESP development
+This project uses the open hardware [Rust ESP development
 board](https://github.com/esp-rs/esp-rust-board), based on the ESP32-C3
 microcontroller.
 
