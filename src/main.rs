@@ -27,13 +27,13 @@ fn main() -> anyhow::Result<()> {
         config.io.duration(),
     )?));
 
-    let wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
-    let server = http::serve(&config.http, Arc::clone(&action))?;
+    // Don't drop these.
+    let _wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
+    let _server = http::serve(&config.http, Arc::clone(&action))?;
 
-    // Keep the WiFi driver and HTTP server running indefinitely, beyond when the main function
-    // returns.
-    std::mem::forget(wifi);
-    std::mem::forget(server);
-
-    Ok(())
+    // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
+    // here because `std::thread::park()` does not guarantee that threads will stay parked forever.
+    loop {
+        std::thread::park();
+    }
 }
