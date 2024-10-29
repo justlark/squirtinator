@@ -1,4 +1,4 @@
-use std::{sync::mpsc::Sender, time::Duration};
+use std::{sync::mpsc::SyncSender, time::Duration};
 
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Level, Pin, PinDriver};
 
@@ -9,12 +9,15 @@ pub trait Action: Send {
 
 // An `Action` which toggles a GPIO pin for a set duration in the background.
 pub struct GpioAction {
-    channel: Sender<()>,
+    channel: SyncSender<()>,
 }
 
 impl GpioAction {
     pub fn new(pin: AnyOutputPin, duration: Duration) -> anyhow::Result<Self> {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        // We use a rendezvous channel so that messages to activate the pin don't get queued up. If
+        // the user mashes the button to activate the toy, we want to discard all button presses
+        // that occur while the toy is actively, uh, doing its thing.
+        let (sender, receiver) = std::sync::mpsc::sync_channel(0);
 
         let pin_num = pin.pin();
         let mut driver = PinDriver::output(pin)?;
@@ -43,7 +46,8 @@ impl GpioAction {
 
 impl Action for GpioAction {
     fn exec(&mut self) -> anyhow::Result<()> {
-        self.channel.send(())?;
+        // This is a rendezvous channel. If the toy is already active, don't do anything.
+        self.channel.try_send(())?;
         Ok(())
     }
 }
