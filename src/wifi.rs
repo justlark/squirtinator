@@ -49,6 +49,7 @@ pub fn start(
     log::info!("Starting WiFi...");
 
     wifi.start()?;
+    wifi.wait_netif_up()?;
 
     let ip_addr = wifi.wifi().ap_netif().get_ip_info()?.ip;
 
