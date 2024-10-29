@@ -2,3 +2,6 @@
 ssid = "SquirtinatorRemote"
 hidden = false
 # password = "correct horse battery staple"
+
+[http]
+port = 80

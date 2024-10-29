@@ -1,11 +1,8 @@
 mod config;
+mod http;
 mod wifi;
 
-use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
-    hal::prelude::Peripherals,
-    nvs::{EspNvsPartition, NvsDefault},
-};
+use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals};
 
 fn main() -> anyhow::Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -21,9 +18,13 @@ fn main() -> anyhow::Result<()> {
 
     let config = config::Config::read()?;
 
-    let _wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
+    let wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
+    let server = http::serve(&config.http)?;
 
-    std::thread::sleep(std::time::Duration::from_secs(300));
+    // Keep the WiFi driver and HTTP server running indefinitely, beyond when the main function
+    // returns.
+    std::mem::forget(wifi);
+    std::mem::forget(server);
 
     Ok(())
 }

@@ -10,8 +10,14 @@ pub struct WifiConfig {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct HttpConfig {
+    pub port: u16,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Config {
     pub wifi: WifiConfig,
+    pub http: HttpConfig,
 }
 
 impl Config {
