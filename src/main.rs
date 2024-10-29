@@ -1,11 +1,11 @@
+mod config;
+mod wifi;
+
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::prelude::Peripherals,
     nvs::{EspNvsPartition, NvsDefault},
 };
-
-mod config;
-mod wifi;
 
 fn main() -> anyhow::Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -20,9 +20,6 @@ fn main() -> anyhow::Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
 
     let config = config::Config::read()?;
-
-    // Initializing the NVS is necessary to initialize the WiFi access point.
-    let _nvs_part = EspNvsPartition::<NvsDefault>::take()?;
 
     let _wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
 

@@ -1,6 +1,7 @@
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripheral,
+    nvs::{EspNvsPartition, NvsDefault},
     wifi::{AccessPointConfiguration, AuthMethod, BlockingWifi, Configuration, EspWifi},
 };
 
@@ -13,11 +14,13 @@ pub fn start(
     modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     sysloop: EspSystemEventLoop,
 ) -> anyhow::Result<Box<EspWifi<'static>>> {
+    let nvs_part = EspNvsPartition::<NvsDefault>::take()?;
+
     if config.ssid.is_empty() {
         return Err(anyhow::anyhow!("WiFi SSID cannot be empty."));
     }
 
-    let mut esp_wifi = EspWifi::new(modem, sysloop.clone(), None)?;
+    let mut esp_wifi = EspWifi::new(modem, sysloop.clone(), Some(nvs_part))?;
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
 
