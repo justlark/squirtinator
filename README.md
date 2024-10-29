@@ -36,8 +36,13 @@ just flash
 
 ## Development
 
-It's easiest to build the firmware in a container. You can run any Cargo
-command in the container with `just`, like this:
+To flash the firmware and watch the logs:
+
+```sh
+just dev
+```
+
+You can run any Cargo command like this:
 
 ```sh
 just cargo check
