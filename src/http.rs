@@ -6,13 +6,16 @@ use esp_idf_svc::{
     io::Write,
 };
 
-use crate::config::HttpConfig;
+use crate::{config::HttpConfig, gpio::Action};
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const CSS: &[u8] = include_bytes!("../client/index.css");
 const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
-pub fn serve(config: &HttpConfig) -> anyhow::Result<EspHttpServer<'static>> {
+pub fn serve(
+    config: &HttpConfig,
+    action: Box<dyn Action>,
+) -> anyhow::Result<EspHttpServer<'static>> {
     let server_config = Configuration {
         http_port: config.port,
         ..Default::default()
