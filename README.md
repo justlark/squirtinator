@@ -21,6 +21,10 @@ microcontroller.
 
 ## Prerequisites
 
+This repo builds the firmware in a container. To build the firmware, you'll
+need to have [podman](https://podman.io/docs/installation) installed and
+running in rootless mode.
+
 To flash the firmware, you'll need to install:
 
 - [just](https://github.com/casey/just?tab=readme-ov-file#installation)
