@@ -5,6 +5,14 @@ through a tube at high velocity. It can be remotely controlled over WiFi via a
 self-hosted web interface designed for mobile, and it supports both manual and
 automatic modes of operation.
 
+## Usage
+
+Once you've assembled your Squirtinator and flashed the firmware, power it on
+and connect to its WiFi network, called `SquirtinatorRemote` by default. You
+may need to disconnect from cellular data.
+
+You can navigate to http://192.168.71.1 to access the web interface.
+
 ## Hardware
 
 This project uses the open hardware [Rust ESP development
