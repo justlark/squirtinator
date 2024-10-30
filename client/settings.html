@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Squirtinator Settings</title>
+    <meta name="description" content="Settings for your Squirtinator" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="/assets/index.css" />
+  </head>
+  <body>
+    <script src="/htmx.min.js"></script>
+    <h1 id="site-title">Squirtinator Settings</h1>
+    <main id="remote" aria-labelledby="site-title">
+      <form
+        id="wifi-form"
+        hx-post="/api/settings/wifi"
+        hx-swap="none"
+        aria-labelledby="wifi-form-heading"
+      >
+        <h2 id="wifi-form-heading">WiFi</h2>
+        <label for="ssid-input">Name (SSID)</label>
+        <input id="ssid-input" name="ssid" type="text" required />
+        <label for="password-input">Password</label>
+        <input id="password-input" name="password" type="password" required />
+        <button type="submit" form="wifi-form">SAVE</button>
+      </form>
+    </main>
+  </body>
+</html>
