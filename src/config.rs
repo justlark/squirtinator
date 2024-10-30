@@ -32,7 +32,8 @@ impl WifiConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct HttpConfig {
-    pub port: u16,
+    pub http_port: u16,
+    pub https_port: u16,
 }
 
 #[derive(Debug, Deserialize)]

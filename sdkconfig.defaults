@@ -4,3 +4,6 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8000
 # The maximum size of the HTTP request headers section that can be processed by
 # the server. The default is quite small.
 CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+
+# Enable HTTPS.
+CONFIG_ESP_HTTPS_SERVER_ENABLE=y
