@@ -1,8 +1,12 @@
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripheral,
+    ipv4,
+    netif::{EspNetif, NetifConfiguration, NetifStack},
     nvs::{EspNvsPartition, NvsDefault},
-    wifi::{AccessPointConfiguration, AuthMethod, BlockingWifi, Configuration, EspWifi},
+    wifi::{
+        AccessPointConfiguration, AuthMethod, BlockingWifi, Configuration, EspWifi, WifiDriver,
+    },
 };
 
 use crate::config::WifiConfig;
@@ -20,7 +24,18 @@ pub fn start(
         return Err(anyhow::anyhow!("WiFi SSID cannot be empty."));
     }
 
-    let mut esp_wifi = EspWifi::new(modem, sysloop.clone(), Some(nvs_part))?;
+    // Set a static, predictable gateway IP address.
+    let mut netif_conf = NetifConfiguration::wifi_default_router();
+    if let ipv4::Configuration::Router(router_conf) = &mut netif_conf.ip_configuration {
+        router_conf.subnet.gateway = config.gateway()?;
+    }
+
+    let wifi_driver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
+    let mut esp_wifi = EspWifi::wrap_all(
+        wifi_driver,
+        EspNetif::new(NetifStack::Sta)?,
+        EspNetif::new_with_conf(&netif_conf)?,
+    )?;
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
 

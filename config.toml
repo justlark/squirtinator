@@ -1,6 +1,8 @@
 [wifi]
 ssid = "Squirtinator"
 hidden = false
+# http://squirtin.me points to 192.168.69.1.
+gateway = "192.168.69.1"
 #channel = 1
 #password = "correct horse battery staple"
 

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::bail;
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
+use esp_idf_svc::ipv4::Ipv4Addr;
 use serde::Deserialize;
 
 const TOML_CONFIG: &str = include_str!("../config.toml");
@@ -12,6 +13,21 @@ pub struct WifiConfig {
     pub password: Option<String>,
     pub hidden: bool,
     pub channel: Option<u8>,
+    pub gateway: String,
+}
+
+impl WifiConfig {
+    pub fn gateway(&self) -> anyhow::Result<Ipv4Addr> {
+        Ok(self
+            .gateway
+            .split('.')
+            .map(str::parse)
+            .collect::<Result<Vec<u8>, _>>()
+            .map_err(|_| anyhow::anyhow!("Invalid gateway IP address."))
+            .map(TryInto::<[u8; 4]>::try_into)?
+            .map_err(|_| anyhow::anyhow!("Invalid gateway IP address."))?
+            .into())
+    }
 }
 
 #[derive(Debug, Deserialize)]
