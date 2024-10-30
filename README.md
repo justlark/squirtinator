@@ -13,7 +13,7 @@ Once you've assembled your Squirtinator and flashed the firmware, power it on
 and connect to its WiFi network, called `Squirtinator` by default. You may need
 to disconnect from cellular data.
 
-Once connected, you can navigate to http://squirtin.me to access the web
+Once connected, you can navigate to http://192.168.69.1 to access the web
 interface.
 
 ## Hardware
