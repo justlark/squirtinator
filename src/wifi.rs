@@ -4,6 +4,7 @@ use esp_idf_svc::{
     ipv4,
     netif::{EspNetif, NetifConfiguration},
     nvs::{EspNvsPartition, NvsDefault},
+    sys::ESP_ERR_TIMEOUT,
     wifi::{BlockingWifi, EspWifi, WifiDriver},
 };
 
@@ -83,7 +84,17 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        wifi.connect()?;
+        loop {
+            match wifi.connect() {
+                Err(err) if err.code() == ESP_ERR_TIMEOUT => {
+                    log::warn!("WiFi connection timed out. Retrying...");
+                    continue;
+                }
+                Err(err) => return Err(err.into()),
+                Ok(_) => break,
+            }
+        }
+
         log::info!("WiFi connected.");
     }
 
