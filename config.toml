@@ -2,10 +2,18 @@
 # to access the toy without having to switch to its own WiFi network.
 [wifi]
 # The hostname of the toy on the local network. If the hostname is `foo`, you
-# can access the toy at `http://foo.local`.
+# can access the toy at `http://foo.local` (with clients that support mDNS).
 hostname = "squirtinator"
+# Configuring an SSID will prompt the toy to try and connect to the local
+# network.
 #ssid = "MyNetwork"
 #password = "12345"
+
+  # You can optionally assign the toy a static IP address on the local network.
+  #[wifi.static]
+  #addr = "192.168.0.69"
+  #gateway = "192.168.0.1"
+  #mask = 24
 
 # Settings for the toy's own WiFi network. This allows you to connect to the
 # toy when there's not a local WiFi network available, or to change the WiFi
@@ -14,7 +22,7 @@ hostname = "squirtinator"
 [access_point]
 ssid = "Squirtinator"
 hidden = false
-gateway = "192.168.69.1"
+gateway = "192.168.0.1"
 #channel = 1
 #password = "correct horse battery staple"
 

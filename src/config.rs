@@ -1,8 +1,9 @@
 use std::time::Duration;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
-use esp_idf_svc::ipv4::Ipv4Addr;
+use esp_idf_svc::ipv4::{self, Ipv4Addr};
+use esp_idf_svc::netif::NetifConfiguration;
 use esp_idf_svc::wifi;
 use serde::Deserialize;
 
@@ -10,10 +11,19 @@ const TOML_CONFIG: &str = include_str!("../config.toml");
 const AUTH_METHOD: wifi::AuthMethod = wifi::AuthMethod::WPA2Personal;
 
 #[derive(Debug, Deserialize)]
+pub struct StaticWifiConfig {
+    pub addr: String,
+    pub gateway: String,
+    pub mask: u8,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct WifiConfig {
     pub ssid: Option<String>,
     pub password: Option<String>,
     pub hostname: String,
+    #[serde(rename = "static")]
+    pub static_ip: Option<StaticWifiConfig>,
 }
 
 impl WifiConfig {
@@ -21,13 +31,13 @@ impl WifiConfig {
         self.ssid.is_some() && !self.ssid.as_ref().unwrap().is_empty()
     }
 
-    pub fn config(&self) -> anyhow::Result<Option<wifi::ClientConfiguration>> {
+    pub fn wifi_config(&self) -> anyhow::Result<Option<wifi::ClientConfiguration>> {
         Ok(match &self.ssid {
             Some(ssid) if !ssid.is_empty() => Some(wifi::ClientConfiguration {
                 ssid: ssid
                     .as_str()
                     .try_into()
-                    .map_err(|_| anyhow::anyhow!("WiFi SSID is too long."))?,
+                    .map_err(|_| anyhow!("WiFi SSID is too long: {}", ssid))?,
                 auth_method: match &self.password {
                     Some(password) if !password.is_empty() => AUTH_METHOD,
                     _ => wifi::AuthMethod::None,
@@ -37,11 +47,60 @@ impl WifiConfig {
                     .as_deref()
                     .unwrap_or_default()
                     .try_into()
-                    .map_err(|_| anyhow::anyhow!("WiFi password is too long."))?,
+                    .map_err(|_| {
+                        anyhow!(
+                            "WiFi password is too long: {}",
+                            &self.password.as_deref().unwrap_or_default()
+                        )
+                    })?,
                 ..Default::default()
             }),
             _ => None,
         })
+    }
+
+    pub fn netif_config(&self) -> anyhow::Result<NetifConfiguration> {
+        let mut sta_config = NetifConfiguration::wifi_default_client();
+
+        sta_config.ip_configuration = match &self.static_ip {
+            Some(static_config) => {
+                log::info!("Setting WiFi client IP address to: {}", static_config.addr);
+
+                let addr: ipv4::Ipv4Addr = static_config
+                    .addr
+                    .parse()
+                    .map_err(|_| anyhow!("Invalid IP address: {}", static_config.addr))?;
+
+                let gateway: ipv4::Ipv4Addr = static_config
+                    .gateway
+                    .parse()
+                    .map_err(|_| anyhow!("Invalid IP address: {}", static_config.gateway))?;
+
+                ipv4::Configuration::Client(ipv4::ClientConfiguration::Fixed(
+                    ipv4::ClientSettings {
+                        ip: addr,
+                        subnet: ipv4::Subnet {
+                            gateway,
+                            mask: ipv4::Mask(static_config.mask),
+                        },
+                        ..Default::default()
+                    },
+                ))
+            }
+            None => {
+                log::info!("Setting WiFi client hostname to: {}", self.hostname);
+
+                ipv4::Configuration::Client(ipv4::ClientConfiguration::DHCP(
+                    ipv4::DHCPClientSettings {
+                        hostname: Some(self.hostname.as_str().try_into().map_err(|_| {
+                            anyhow!("WiFi hostname is too long: {}", self.hostname)
+                        })?),
+                    },
+                ))
+            }
+        };
+
+        Ok(sta_config)
     }
 }
 
@@ -56,18 +115,12 @@ pub struct AccessPointConfig {
 
 impl AccessPointConfig {
     pub fn gateway(&self) -> anyhow::Result<Ipv4Addr> {
-        Ok(self
-            .gateway
-            .split('.')
-            .map(str::parse)
-            .collect::<Result<Vec<u8>, _>>()
-            .map_err(|_| anyhow::anyhow!("Invalid gateway IP address."))
-            .map(TryInto::<[u8; 4]>::try_into)?
-            .map_err(|_| anyhow::anyhow!("Invalid gateway IP address."))?
-            .into())
+        self.gateway
+            .parse()
+            .map_err(|_| anyhow!("Invalid gateway IP address: {}", self.gateway))
     }
 
-    pub fn config(&self) -> anyhow::Result<wifi::AccessPointConfiguration> {
+    pub fn wifi_config(&self) -> anyhow::Result<wifi::AccessPointConfiguration> {
         let default_config = wifi::AccessPointConfiguration::default();
 
         Ok(wifi::AccessPointConfiguration {
@@ -75,7 +128,7 @@ impl AccessPointConfig {
                 .ssid
                 .as_str()
                 .try_into()
-                .map_err(|_| anyhow::anyhow!("WiFi SSID is too long."))?,
+                .map_err(|_| anyhow!("WiFi SSID is too long: {}", self.ssid))?,
             ssid_hidden: self.hidden,
             auth_method: match &self.password {
                 Some(password) if !password.is_empty() => AUTH_METHOD,
@@ -86,10 +139,26 @@ impl AccessPointConfig {
                 .as_deref()
                 .unwrap_or_default()
                 .try_into()
-                .map_err(|_| anyhow::anyhow!("WiFi password is too long."))?,
+                .map_err(|_| {
+                    anyhow!(
+                        "WiFi password is too long: {}",
+                        self.password.as_deref().unwrap_or_default()
+                    )
+                })?,
             channel: self.channel.unwrap_or(default_config.channel),
             ..default_config
         })
+    }
+
+    pub fn netif_config(&self) -> anyhow::Result<NetifConfiguration> {
+        let mut router_config = NetifConfiguration::wifi_default_router();
+
+        // Set a static, predictable gateway IP address.
+        if let ipv4::Configuration::Router(config) = &mut router_config.ip_configuration {
+            config.subnet.gateway = self.gateway()?;
+        }
+
+        Ok(router_config)
     }
 }
 
@@ -142,11 +211,11 @@ pub struct Config {
 
 impl Config {
     pub fn wifi_config(&self) -> anyhow::Result<wifi::Configuration> {
-        let ap_config = self.access_point.config()?;
+        let ap_config = self.access_point.wifi_config()?;
 
         // The device always operates as an access point (AP mode), but operating as a client (STA
         // mode) is optional.
-        match self.wifi.config()? {
+        match self.wifi.wifi_config()? {
             Some(client_config) => Ok(wifi::Configuration::Mixed(client_config, ap_config)),
             None => Ok(wifi::Configuration::AccessPoint(ap_config)),
         }

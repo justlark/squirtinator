@@ -1,8 +1,8 @@
+use anyhow::anyhow;
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripheral,
-    ipv4,
-    netif::{EspNetif, NetifConfiguration},
+    netif::EspNetif,
     nvs::{EspNvsPartition, NvsDefault},
     sys::ESP_ERR_TIMEOUT,
     wifi::{BlockingWifi, EspWifi, WifiDriver},
@@ -39,39 +39,16 @@ pub fn start(
     sysloop: EspSystemEventLoop,
 ) -> anyhow::Result<EspWifi<'static>> {
     if config.access_point.ssid.is_empty() {
-        return Err(anyhow::anyhow!("Access point WiFi SSID cannot be empty."));
+        return Err(anyhow!("Access point WiFi SSID cannot be empty."));
     }
 
     let nvs_part = EspNvsPartition::<NvsDefault>::take()?;
 
-    // Set a static, predictable gateway IP address.
-    let mut ap_config = NetifConfiguration::wifi_default_router();
-    if let ipv4::Configuration::Router(router_conf) = &mut ap_config.ip_configuration {
-        router_conf.subnet.gateway = config.access_point.gateway()?;
-    }
-
-    // Set the client hostname.
-    let mut sta_config = NetifConfiguration::wifi_default_client();
-    if let ipv4::Configuration::Client(ipv4::ClientConfiguration::DHCP(client_conf)) =
-        &mut sta_config.ip_configuration
-    {
-        log::info!("Setting WiFi client hostname to: {}", config.wifi.hostname);
-
-        client_conf.hostname = Some(
-            config
-                .wifi
-                .hostname
-                .as_str()
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("WiFi hostname is too long."))?,
-        );
-    }
-
     let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
     let mut esp_wifi = EspWifi::wrap_all(
         wifi_driver,
-        EspNetif::new_with_conf(&sta_config)?,
-        EspNetif::new_with_conf(&ap_config)?,
+        EspNetif::new_with_conf(&config.wifi.netif_config()?)?,
+        EspNetif::new_with_conf(&config.access_point.netif_config()?)?,
     )?;
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
