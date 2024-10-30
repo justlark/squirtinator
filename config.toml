@@ -1,4 +1,17 @@
+# Settings for a local WiFi network for the toy to connect to. This allows you
+# to access the toy without having to switch to its own WiFi network.
 [wifi]
+# The hostname of the toy on the local network. If the hostname is `foo`, you
+# can access the toy at `http://foo.local`.
+hostname = "squirtinator"
+#ssid = "MyNetwork"
+#password = "12345"
+
+# Settings for the toy's own WiFi network. This allows you to connect to the
+# toy when there's not a local WiFi network available, or to change the WiFi
+# SSID/password without already being connected (to avoid a chicken-and-egg
+# problem).
+[access_point]
 ssid = "Squirtinator"
 hidden = false
 gateway = "192.168.69.1"

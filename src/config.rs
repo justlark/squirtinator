@@ -9,6 +9,12 @@ const TOML_CONFIG: &str = include_str!("../config.toml");
 
 #[derive(Debug, Deserialize)]
 pub struct WifiConfig {
+    pub ssid: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AccessPointConfig {
     pub ssid: String,
     pub password: Option<String>,
     pub hidden: bool,
@@ -16,7 +22,7 @@ pub struct WifiConfig {
     pub gateway: String,
 }
 
-impl WifiConfig {
+impl AccessPointConfig {
     pub fn gateway(&self) -> anyhow::Result<Ipv4Addr> {
         Ok(self
             .gateway
@@ -72,6 +78,7 @@ impl IoConfig {
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub wifi: WifiConfig,
+    pub access_point: AccessPointConfig,
     pub http: HttpConfig,
     pub io: IoConfig,
 }
