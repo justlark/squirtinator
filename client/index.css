@@ -82,12 +82,35 @@ button {
 }
 
 button:not(:active) {
-  transition: border-color 0.25s ease-in-out, border-width 0.25s ease-in-out;
+  transition-duration: 0.25s;
+  transition-timing-function: ease-in-out;
+  transition-property: border-color, border-width, background-color;
 }
 
-button:hover {
-  cursor: pointer;
-  background-color: var(--color-bg-active);
+/*
+ * These styles are deliberately exclusive of touch devices.
+ */
+@media (hover: hover) {
+  /*
+   * If you try to apply this `:hover` style on touch devices (i.e. mobile), it
+   * will get into a "stuck" state where the style will continue to apply after
+   * the button has been released and until the focus moves elsewhere.
+   */
+  button:hover {
+    cursor: pointer;
+    background-color: var(--color-bg-active);
+  }
+
+  /*
+   * On touch devices, the `background-color` should be animated alongside the
+   * `border-color` and `border-width` because it won't already be styled by
+   * the `:hover`. We do *not* want this on non-touch devices, however, because
+   * the UI will feel sluggish if there is a delay between the mouse hover and
+   * the button changing color in response.
+   */
+  button:not(:active) {
+    transition-property: border-color, border-width;
+  }
 }
 
 button:active {
