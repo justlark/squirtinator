@@ -37,7 +37,7 @@ pub fn start(
     config: &Config,
     modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     sysloop: EspSystemEventLoop,
-) -> anyhow::Result<Box<EspWifi<'static>>> {
+) -> anyhow::Result<EspWifi<'static>> {
     if config.access_point.ssid.is_empty() {
         return Err(anyhow::anyhow!("Access point WiFi SSID cannot be empty."));
     }
@@ -67,7 +67,7 @@ pub fn start(
         );
     }
 
-    let wifi_driver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
+    let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
     let mut esp_wifi = EspWifi::wrap_all(
         wifi_driver,
         EspNetif::new_with_conf(&sta_config)?,
@@ -104,5 +104,5 @@ pub fn start(
     // Set up mDNS for local network discovery.
     configure_mdns(&config.wifi.hostname)?;
 
-    Ok(Box::new(esp_wifi))
+    Ok(esp_wifi)
 }

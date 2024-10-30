@@ -196,3 +196,7 @@ input {
 #settings-link {
   min-height: 5rem;
 }
+
+#addr-info {
+  text-align: center;
+}

@@ -6,6 +6,7 @@ use esp_idf_svc::{
         Method,
     },
     io::Write,
+    wifi::EspWifi,
 };
 
 use crate::{config::HttpConfig, gpio::Action};
@@ -16,6 +17,7 @@ const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
 pub fn serve(
     config: &HttpConfig,
+    wifi: EspWifi<'static>,
     action: Arc<Mutex<dyn Action>>,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let server_config = Configuration {
@@ -72,6 +74,34 @@ pub fn serve(
             Ok(())
         },
     )?;
+
+    server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
+        let mut resp = req.into_response(200, None, &[("Content-Type", "text/html")])?;
+        let addr = if wifi.driver().is_sta_connected()? {
+            Some(wifi.sta_netif().get_ip_info()?.ip)
+        } else {
+            None
+        };
+
+        let body = match addr {
+            Some(addr) => format!(
+                "
+                <p>Your Squirtinator is connected to WiFi at this address:</p>
+                <p>http://{}</p>
+                ",
+                addr
+            ),
+            None => String::from(
+                "
+                <p>Your Squirtinator is not connected to WiFi.</p>
+                ",
+            ),
+        };
+
+        resp.write_all(body.as_bytes())?;
+
+        Ok(())
+    })?;
 
     Ok(server)
 }
