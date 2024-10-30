@@ -32,7 +32,8 @@
   --color-bg: var(--catppuccin-mantle);
   --color-primary: var(--catppuccin-teal);
   --color-border: var(--catppuccin-overlay1);
-  --color-active: var(--catppuccin-base);
+  --color-fg-active: var(--color-primary);
+  --color-bg-active: var(--catppuccin-base);
 
   /* Styling */
   --font-size-base: 16px;
@@ -76,22 +77,28 @@ button {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--border-radius);
   color: var(--color-fg);
-  background-color: transparent;
+  background-color: var(--color-bg);
   padding: 1rem;
+}
+
+button:not(:active) {
+  transition: border-color 0.25s ease-in-out, border-width 0.25s ease-in-out;
 }
 
 button:hover {
   cursor: pointer;
-  background-color: var(--color-active);
+  background-color: var(--color-bg-active);
 }
 
 button:active {
-  background-color: var(--color-active);
+  background-color: var(--color-bg-active);
+  border-color: var(--color-fg-active);
+  border-width: var(--border-width-active);
 }
 
 button[role="switch"][aria-checked="true"] {
-  border-color: var(--color-primary);
-  background-color: var(--color-active);
+  border-color: var(--color-fg-active);
+  background-color: var(--color-bg-active);
   border-width: var(--border-width-active);
 }
 
@@ -109,11 +116,11 @@ button[role="switch"][aria-checked="true"] {
 
 .nav-button:hover {
   cursor: pointer;
-  background-color: var(--color-active);
+  background-color: var(--color-bg-active);
 }
 
 .nav-button:active {
-  background-color: var(--color-active);
+  background-color: var(--color-bg-active);
 }
 
 #remote > * {
