@@ -28,7 +28,7 @@ fn main() -> anyhow::Result<()> {
     )?));
 
     // Don't drop these.
-    let _wifi = wifi::start(&config.wifi, peripherals.modem, sysloop)?;
+    let _wifi = wifi::start(&config, peripherals.modem, sysloop)?;
     let _server = http::serve(&config.http, Arc::clone(&action))?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop

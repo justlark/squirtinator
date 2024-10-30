@@ -3,14 +3,46 @@ use std::time::Duration;
 use anyhow::bail;
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
 use esp_idf_svc::ipv4::Ipv4Addr;
+use esp_idf_svc::wifi;
 use serde::Deserialize;
 
 const TOML_CONFIG: &str = include_str!("../config.toml");
+const AUTH_METHOD: wifi::AuthMethod = wifi::AuthMethod::WPA2Personal;
 
 #[derive(Debug, Deserialize)]
 pub struct WifiConfig {
     pub ssid: Option<String>,
     pub password: Option<String>,
+    pub hostname: String,
+}
+
+impl WifiConfig {
+    pub fn is_configured(&self) -> bool {
+        self.ssid.is_some() && !self.ssid.as_ref().unwrap().is_empty()
+    }
+
+    pub fn config(&self) -> anyhow::Result<Option<wifi::ClientConfiguration>> {
+        Ok(match &self.ssid {
+            Some(ssid) if !ssid.is_empty() => Some(wifi::ClientConfiguration {
+                ssid: ssid
+                    .as_str()
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("WiFi SSID is too long."))?,
+                auth_method: match &self.password {
+                    Some(password) if !password.is_empty() => AUTH_METHOD,
+                    _ => wifi::AuthMethod::None,
+                },
+                password: self
+                    .password
+                    .as_deref()
+                    .unwrap_or_default()
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("WiFi password is too long."))?,
+                ..Default::default()
+            }),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,6 +65,31 @@ impl AccessPointConfig {
             .map(TryInto::<[u8; 4]>::try_into)?
             .map_err(|_| anyhow::anyhow!("Invalid gateway IP address."))?
             .into())
+    }
+
+    pub fn config(&self) -> anyhow::Result<wifi::AccessPointConfiguration> {
+        let default_config = wifi::AccessPointConfiguration::default();
+
+        Ok(wifi::AccessPointConfiguration {
+            ssid: self
+                .ssid
+                .as_str()
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("WiFi SSID is too long."))?,
+            ssid_hidden: self.hidden,
+            auth_method: match &self.password {
+                Some(password) if !password.is_empty() => AUTH_METHOD,
+                _ => wifi::AuthMethod::None,
+            },
+            password: self
+                .password
+                .as_deref()
+                .unwrap_or_default()
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("WiFi password is too long."))?,
+            channel: self.channel.unwrap_or(default_config.channel),
+            ..default_config
+        })
     }
 }
 
@@ -81,6 +138,19 @@ pub struct Config {
     pub access_point: AccessPointConfig,
     pub http: HttpConfig,
     pub io: IoConfig,
+}
+
+impl Config {
+    pub fn wifi_config(&self) -> anyhow::Result<wifi::Configuration> {
+        let ap_config = self.access_point.config()?;
+
+        // The device always operates as an access point (AP mode), but operating as a client (STA
+        // mode) is optional.
+        match self.wifi.config()? {
+            Some(client_config) => Ok(wifi::Configuration::Mixed(client_config, ap_config)),
+            None => Ok(wifi::Configuration::AccessPoint(ap_config)),
+        }
+    }
 }
 
 impl Config {

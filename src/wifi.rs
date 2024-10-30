@@ -2,78 +2,68 @@ use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripheral,
     ipv4,
-    netif::{EspNetif, NetifConfiguration, NetifStack},
+    netif::{EspNetif, NetifConfiguration},
     nvs::{EspNvsPartition, NvsDefault},
-    wifi::{
-        AccessPointConfiguration, AuthMethod, BlockingWifi, Configuration, EspWifi, WifiDriver,
-    },
+    wifi::{BlockingWifi, EspWifi, WifiDriver},
 };
 
-use crate::config::WifiConfig;
-
-const AUTH_METHOD: AuthMethod = AuthMethod::WPA2Personal;
+use crate::config::Config;
 
 pub fn start(
-    config: &WifiConfig,
+    config: &Config,
     modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     sysloop: EspSystemEventLoop,
 ) -> anyhow::Result<Box<EspWifi<'static>>> {
-    let nvs_part = EspNvsPartition::<NvsDefault>::take()?;
-
-    if config.ssid.is_empty() {
-        return Err(anyhow::anyhow!("WiFi SSID cannot be empty."));
+    if config.access_point.ssid.is_empty() {
+        return Err(anyhow::anyhow!("Access point WiFi SSID cannot be empty."));
     }
 
+    let nvs_part = EspNvsPartition::<NvsDefault>::take()?;
+
     // Set a static, predictable gateway IP address.
-    let mut netif_conf = NetifConfiguration::wifi_default_router();
-    if let ipv4::Configuration::Router(router_conf) = &mut netif_conf.ip_configuration {
-        router_conf.subnet.gateway = config.gateway()?;
+    let mut ap_config = NetifConfiguration::wifi_default_router();
+    if let ipv4::Configuration::Router(router_conf) = &mut ap_config.ip_configuration {
+        router_conf.subnet.gateway = config.access_point.gateway()?;
+    }
+
+    // Set the client hostname.
+    let mut sta_config = NetifConfiguration::wifi_default_client();
+    if let ipv4::Configuration::Client(ipv4::ClientConfiguration::DHCP(client_conf)) =
+        &mut sta_config.ip_configuration
+    {
+        client_conf.hostname = Some(
+            config
+                .wifi
+                .hostname
+                .as_str()
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("WiFi hostname is too long."))?,
+        );
     }
 
     let wifi_driver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
     let mut esp_wifi = EspWifi::wrap_all(
         wifi_driver,
-        EspNetif::new(NetifStack::Sta)?,
-        EspNetif::new_with_conf(&netif_conf)?,
+        EspNetif::new_with_conf(&sta_config)?,
+        EspNetif::new_with_conf(&ap_config)?,
     )?;
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
 
-    let default_config = AccessPointConfiguration::default();
-
-    // TODO: Read the WiFi password from NVS, falling back to the configured default password. This
-    // allows for the password to be changed at runtime.
-    let config = &Configuration::AccessPoint(AccessPointConfiguration {
-        ssid: config
-            .ssid
-            .as_str()
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("WiFi SSID is too long."))?,
-        ssid_hidden: config.hidden,
-        auth_method: match &config.password {
-            Some(password) if !password.is_empty() => AUTH_METHOD,
-            _ => AuthMethod::None,
-        },
-        password: config
-            .password
-            .as_deref()
-            .unwrap_or_default()
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("WiFi password is too long."))?,
-        channel: config.channel.unwrap_or(default_config.channel),
-        ..default_config
-    });
-
-    wifi.set_configuration(config)?;
+    wifi.set_configuration(&config.wifi_config()?)?;
 
     log::info!("Starting WiFi...");
 
     wifi.start()?;
+    log::info!("WiFi started.");
+
+    if config.wifi.is_configured() {
+        wifi.connect()?;
+        log::info!("WiFi connected.");
+    }
+
     wifi.wait_netif_up()?;
-
-    let ip_addr = wifi.wifi().ap_netif().get_ip_info()?.ip;
-
-    log::info!("WiFi started. IP address: {}", ip_addr);
+    log::info!("WiFi netif up.");
 
     Ok(Box::new(esp_wifi))
 }
