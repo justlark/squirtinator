@@ -9,6 +9,29 @@ use esp_idf_svc::{
 
 use crate::config::Config;
 
+#[allow(unused_variables)]
+fn configure_mdns(hostname: &str) -> anyhow::Result<bool> {
+    #[cfg(esp_idf_comp_espressif__mdns_enabled)]
+    {
+        use esp_idf_svc::mdns::EspMdns;
+
+        log::info!("Configuring mDNS hostname: {}", hostname);
+        let mut mdns = EspMdns::take()?;
+        mdns.set_hostname(hostname)?;
+
+        // Don't drop this.
+        std::mem::forget(mdns);
+
+        Ok(true)
+    }
+
+    #[cfg(not(esp_idf_comp_espressif__mdns_enabled))]
+    {
+        log::info!("Skipping mDNS setup.");
+        Ok(false)
+    }
+}
+
 pub fn start(
     config: &Config,
     modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
@@ -31,6 +54,8 @@ pub fn start(
     if let ipv4::Configuration::Client(ipv4::ClientConfiguration::DHCP(client_conf)) =
         &mut sta_config.ip_configuration
     {
+        log::info!("Setting WiFi client hostname to: {}", config.wifi.hostname);
+
         client_conf.hostname = Some(
             config
                 .wifi
@@ -64,6 +89,9 @@ pub fn start(
 
     wifi.wait_netif_up()?;
     log::info!("WiFi netif up.");
+
+    // Set up mDNS for local network discovery.
+    configure_mdns(&config.wifi.hostname)?;
 
     Ok(Box::new(esp_wifi))
 }
