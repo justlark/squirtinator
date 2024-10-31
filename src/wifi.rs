@@ -1,5 +1,6 @@
 use std::{
     any::Any,
+    fmt,
     net::Ipv4Addr,
     sync::{mpsc, Arc, Mutex},
     time::Duration,
@@ -9,6 +10,7 @@ use anyhow::anyhow;
 use esp_idf_svc::{
     eventloop::{self, EspSubscription, EspSystemEventLoop},
     hal::peripheral,
+    mdns::EspMdns,
     netif::EspNetif,
     nvs::{EspNvsPartition, NvsDefault},
     sys::ESP_ERR_TIMEOUT,
@@ -52,16 +54,24 @@ impl Request for IpAddrRequest {
 }
 
 // A request which reconnects the WiFi STA interface.
-#[derive(Debug)]
 pub struct ReconnectRequest {
     hostname: String,
+    mdns: Arc<Mutex<EspMdns>>,
+}
+
+impl fmt::Debug for ReconnectRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReconnectRequest")
+            .field("hostname", &self.hostname)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Request for ReconnectRequest {
     type Response = ();
 
     fn respond(&self, wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
-        connect_and_retry(wifi, &self.hostname)?;
+        connect_and_retry(wifi, Arc::clone(&self.mdns), &self.hostname)?;
 
         log::info!("WiFi reconnected!");
 
@@ -126,6 +136,7 @@ impl RequestHandler {
 
 fn connect_and_retry(
     wifi: &mut BlockingWifi<EspWifi<'static>>,
+    mdns: Arc<Mutex<EspMdns>>,
     hostname: &str,
 ) -> anyhow::Result<()> {
     let mut backoff_duration = BACKOFF_DURATION_START;
@@ -155,7 +166,7 @@ fn connect_and_retry(
                 wifi.wait_netif_up()?;
                 log::info!("WiFi netif up.");
 
-                configure_mdns(hostname)?;
+                configure_mdns(&mut mdns.lock().unwrap(), hostname)?;
 
                 break;
             }
@@ -167,31 +178,16 @@ fn connect_and_retry(
 
 // Set up mDNS for local network discovery.
 #[allow(unused_variables)]
-fn configure_mdns(hostname: &str) -> anyhow::Result<bool> {
-    #[cfg(esp_idf_comp_espressif__mdns_enabled)]
-    {
-        use esp_idf_svc::mdns::EspMdns;
-
-        log::info!("Configuring mDNS hostname: {}", hostname);
-        let mut mdns = EspMdns::take()?;
-        mdns.set_hostname(hostname)?;
-
-        // Don't drop this.
-        std::mem::forget(mdns);
-
-        Ok(true)
-    }
-
-    #[cfg(not(esp_idf_comp_espressif__mdns_enabled))]
-    {
-        log::info!("Skipping mDNS setup.");
-        Ok(false)
-    }
+fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
+    log::info!("Configuring mDNS hostname: {}", hostname);
+    mdns.set_hostname(hostname)?;
+    Ok(())
 }
 
 pub fn start(
     config: &Config,
     modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
+    mdns: Arc<Mutex<EspMdns>>,
     sysloop: EspSystemEventLoop,
 ) -> anyhow::Result<RequestHandler> {
     if config.access_point.ssid.is_empty() {
@@ -217,7 +213,7 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        connect_and_retry(&mut wifi, &config.wifi.hostname)?;
+        connect_and_retry(&mut wifi, Arc::clone(&mdns), &config.wifi.hostname)?;
         log::info!("WiFi connected.");
     }
 
@@ -227,6 +223,7 @@ pub fn start(
 pub fn keep_alive(
     eventloop: &EspSystemEventLoop,
     handler: Arc<Mutex<RequestHandler>>,
+    mdns: Arc<Mutex<EspMdns>>,
     hostname: String,
 ) -> anyhow::Result<EspSubscription<'static, eventloop::System>> {
     Ok(eventloop.subscribe::<WifiEvent, _>(move |event| {
@@ -235,6 +232,7 @@ pub fn keep_alive(
 
             let request = ReconnectRequest {
                 hostname: hostname.clone(),
+                mdns: Arc::clone(&mdns),
             };
 
             if let Err(err) = handler.lock().unwrap().request(request) {

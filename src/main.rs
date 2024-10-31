@@ -9,7 +9,7 @@ mod wifi;
 
 use std::sync::{Arc, Mutex};
 
-use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals};
+use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals, mdns::EspMdns};
 use gpio::{Action, GpioAction};
 
 fn main() -> anyhow::Result<()> {
@@ -31,12 +31,18 @@ fn main() -> anyhow::Result<()> {
         config.io.duration(),
     )?));
 
-    // Don't drop these.
-    let wifi_request_handler = Arc::new(Mutex::new(wifi::start(
+    let mdns = Arc::new(Mutex::new(EspMdns::take()?));
+
+    let wifi_request_handler = wifi::start(
         &config,
         peripherals.modem,
+        Arc::clone(&mdns),
         sysloop.clone(),
-    )?));
+    )?;
+
+    let wifi_request_handler = Arc::new(Mutex::new(wifi_request_handler));
+
+    // Don't drop this.
     let _server = http::serve(
         &config,
         Arc::clone(&wifi_request_handler),
@@ -47,6 +53,7 @@ fn main() -> anyhow::Result<()> {
     let _subscription = wifi::keep_alive(
         &sysloop,
         Arc::clone(&wifi_request_handler),
+        Arc::clone(&mdns),
         config.wifi.hostname.clone(),
     )?;
 
