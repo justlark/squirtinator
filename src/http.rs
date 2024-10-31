@@ -6,19 +6,32 @@ use esp_idf_svc::{
         Method,
     },
     io::Write,
+    nvs::{EspNvs, EspNvsPartition, NvsPartitionId},
+};
+use serde::Deserialize;
+
+use crate::{
+    config::{user_nvs, Config},
+    gpio::Action,
+    wifi,
 };
 
-use crate::{config::Config, gpio::Action, wifi};
-
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
+const HTML_SETTINGS: &[u8] = include_bytes!("../client/settings.html");
 const CSS: &[u8] = include_bytes!("../client/index.css");
 const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
-pub fn serve(
+const BUF_SIZE: usize = 1024;
+
+pub fn serve<P>(
     config: &Config,
     wifi: Arc<Mutex<wifi::RequestHandler>>,
+    nvs_part: EspNvsPartition<P>,
     action: Arc<Mutex<dyn Action>>,
-) -> anyhow::Result<EspHttpServer<'static>> {
+) -> anyhow::Result<EspHttpServer<'static>>
+where
+    P: NvsPartitionId + Send + Sync + 'static,
+{
     let server_config = Configuration {
         http_port: config.http.port,
         ..Default::default()
@@ -31,6 +44,15 @@ pub fn serve(
 
         let mut resp = req.into_response(200, None, &headers)?;
         resp.write_all(HTML_INDEX)?;
+
+        Ok(())
+    })?;
+
+    server.fn_handler("/settings", Method::Get, |req| -> anyhow::Result<()> {
+        let headers = [("Content-Type", "text/html")];
+
+        let mut resp = req.into_response(200, None, &headers)?;
+        resp.write_all(HTML_SETTINGS)?;
 
         Ok(())
     })?;
@@ -107,6 +129,52 @@ pub fn serve(
 
         Ok(())
     })?;
+
+    #[derive(Debug, Deserialize)]
+    struct WifiSettingsFormBody {
+        ssid: String,
+        password: String,
+    }
+
+    impl WifiSettingsFormBody {
+        fn save<P: NvsPartitionId>(&self, nvs: &mut EspNvs<P>) -> anyhow::Result<()> {
+            nvs.set_str("wifi.ssid", &self.ssid)?;
+
+            if !self.password.is_empty() {
+                nvs.set_str("wifi.password", &self.password)?;
+            }
+
+            log::info!("WiFi settings saved.");
+
+            Ok(())
+        }
+    }
+
+    server.fn_handler(
+        "/api/settings/wifi",
+        Method::Put,
+        move |mut req| -> anyhow::Result<()> {
+            let mut body = Vec::new();
+            let mut buf = vec![0; BUF_SIZE];
+
+            while let Ok(len) = req.read(&mut buf) {
+                if len == 0 {
+                    break;
+                }
+
+                body.extend_from_slice(&buf[..len]);
+            }
+
+            let form_body = serde_urlencoded::from_bytes::<WifiSettingsFormBody>(&body)?;
+
+            let mut user_nvs = user_nvs(nvs_part.clone())?;
+            form_body.save(&mut user_nvs)?;
+
+            req.into_ok_response()?;
+
+            Ok(())
+        },
+    )?;
 
     Ok(server)
 }

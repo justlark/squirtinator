@@ -4,12 +4,19 @@ use anyhow::{anyhow, bail};
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
 use esp_idf_svc::ipv4::{self, Ipv4Addr};
 use esp_idf_svc::netif::NetifConfiguration;
-use esp_idf_svc::nvs::{EspNvs, NvsPartitionId};
+use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsPartitionId};
 use esp_idf_svc::wifi;
 use serde::Deserialize;
 
 const TOML_CONFIG: &str = include_str!("../config.toml");
 const AUTH_METHOD: wifi::AuthMethod = wifi::AuthMethod::WPA2Personal;
+
+const NVS_USER_NAMESPACE: &str = "user";
+
+// We store persistent user preferences in their own NVS namespace.
+pub fn user_nvs<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<EspNvs<P>> {
+    Ok(EspNvs::new(nvs_part, NVS_USER_NAMESPACE, true)?)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct StaticWifiConfig {

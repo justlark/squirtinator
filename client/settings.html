@@ -8,12 +8,12 @@
     <link rel="stylesheet" type="text/css" href="/assets/index.css" />
   </head>
   <body>
-    <script src="/htmx.min.js"></script>
+    <script src="/assets/htmx.min.js"></script>
     <h1 id="site-title">Squirtinator Settings</h1>
     <main id="remote" aria-labelledby="site-title">
       <form
         id="wifi-form"
-        hx-post="/api/settings/wifi"
+        hx-put="/api/settings/wifi"
         hx-swap="none"
         aria-labelledby="wifi-form-heading"
       >
@@ -21,7 +21,7 @@
         <label for="ssid-input">Name (SSID)</label>
         <input id="ssid-input" name="ssid" type="text" required />
         <label for="password-input">Password</label>
-        <input id="password-input" name="password" type="password" required />
+        <input id="password-input" name="password" type="password" />
         <button type="submit" form="wifi-form">SAVE</button>
       </form>
     </main>
