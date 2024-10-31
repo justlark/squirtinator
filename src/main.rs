@@ -7,9 +7,16 @@ mod gpio;
 mod http;
 mod wifi;
 
+const NVS_USER_NAMESPACE: &str = "user";
+
 use std::sync::{Arc, Mutex};
 
-use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals, mdns::EspMdns};
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    hal::prelude::Peripherals,
+    mdns::EspMdns,
+    nvs::{EspDefaultNvsPartition, EspNvs},
+};
 use gpio::{Action, GpioAction};
 
 fn main() -> anyhow::Result<()> {
@@ -24,7 +31,14 @@ fn main() -> anyhow::Result<()> {
 
     let sysloop = EspSystemEventLoop::take()?;
 
-    let config = config::Config::read()?;
+    // We store persistent user preferences their own NVS namespace in the default partition.
+    let nvs_part = EspDefaultNvsPartition::take()?;
+    let mut user_nvs = EspNvs::new(nvs_part, NVS_USER_NAMESPACE, true)?;
+
+    let config = config::Config::read(&mut user_nvs)?;
+
+    // Otherwise we won't be able to access the default partition later.
+    drop(user_nvs);
 
     let action: Arc<Mutex<dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
         config.io.pin(peripherals.pins)?,
@@ -37,6 +51,7 @@ fn main() -> anyhow::Result<()> {
         &config,
         peripherals.modem,
         Arc::clone(&mdns),
+        EspDefaultNvsPartition::take()?,
         sysloop.clone(),
     )?));
 

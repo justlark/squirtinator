@@ -4,6 +4,7 @@ use anyhow::{anyhow, bail};
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
 use esp_idf_svc::ipv4::{self, Ipv4Addr};
 use esp_idf_svc::netif::NetifConfiguration;
+use esp_idf_svc::nvs::{EspNvs, NvsPartitionId};
 use esp_idf_svc::wifi;
 use serde::Deserialize;
 
@@ -222,9 +223,45 @@ impl Config {
     }
 }
 
+trait ValueStore<T> {
+    fn get_value(&mut self, key: &str) -> anyhow::Result<Option<T>>;
+
+    fn set_value(&mut self, key: &str, value: T) -> anyhow::Result<()>;
+}
+
+impl<P> ValueStore<String> for EspNvs<P>
+where
+    P: NvsPartitionId,
+{
+    fn get_value(&mut self, key: &str) -> anyhow::Result<Option<String>> {
+        let mut buf = Vec::new();
+        Ok(self.get_str(key, &mut buf)?.map(ToOwned::to_owned))
+    }
+
+    fn set_value(&mut self, key: &str, value: String) -> anyhow::Result<()> {
+        self.set_str(key, &value)?;
+        Ok(())
+    }
+}
+
 impl Config {
-    pub fn read() -> anyhow::Result<Self> {
+    fn from_file() -> anyhow::Result<Self> {
         log::info!("Reading TOML config file.");
         Ok(toml::from_str(TOML_CONFIG)?)
+    }
+
+    pub fn read<P: NvsPartitionId>(nvs: &mut EspNvs<P>) -> anyhow::Result<Self> {
+        let default = Self::from_file()?;
+        Ok(Config {
+            wifi: WifiConfig {
+                ssid: nvs.get_value("wifi.ssid")?.or(default.wifi.ssid),
+                password: nvs.get_value("wifi.password")?.or(default.wifi.password),
+                hostname: default.wifi.hostname,
+                static_ip: default.wifi.static_ip,
+            },
+            access_point: default.access_point,
+            http: default.http,
+            io: default.io,
+        })
     }
 }

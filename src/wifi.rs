@@ -11,7 +11,7 @@ use esp_idf_svc::{
     hal,
     mdns::EspMdns,
     netif::EspNetif,
-    nvs::{EspNvsPartition, NvsDefault},
+    nvs::EspDefaultNvsPartition,
     sys::ESP_ERR_TIMEOUT,
     wifi::{BlockingWifi, EspWifi, WifiDriver, WifiEvent},
 };
@@ -163,13 +163,12 @@ pub fn start(
     config: &Config,
     modem: impl hal::peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     mdns: Arc<Mutex<EspMdns>>,
+    nvs_part: EspDefaultNvsPartition,
     sysloop: EspSystemEventLoop,
 ) -> anyhow::Result<RequestHandler> {
     if config.access_point.ssid.is_empty() {
         return Err(anyhow!("Access point WiFi SSID cannot be empty."));
     }
-
-    let nvs_part = EspNvsPartition::<NvsDefault>::take()?;
 
     let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
     let esp_wifi = EspWifi::wrap_all(
