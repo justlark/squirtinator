@@ -20,8 +20,9 @@ use esp_idf_svc::{
 use crate::config::Config;
 
 // We're pretty greedy with the reconnection backoff, because it's quite frustrating when your sex
-// toy disconnects mid-session and takes a while to reconnect.
-const BACKOFF_DURATION_START: Duration = Duration::ZERO;
+// toy disconnects mid-session and takes a while to reconnect. Hence linear rather than exponential
+// backoff.
+const BACKOFF_DURATION_START: Duration = Duration::from_secs(1);
 const BACKOFF_DURATION_MAX: Duration = Duration::from_secs(5);
 const BACKOFF_DURATION_STEP: Duration = Duration::from_secs(1);
 
@@ -71,9 +72,13 @@ impl Request for ReconnectRequest {
     type Response = ();
 
     fn respond(&self, wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
-        connect_and_retry(wifi, Arc::clone(&self.mdns), &self.hostname)?;
-
+        wifi.connect()?;
         log::info!("WiFi reconnected!");
+
+        wifi.wait_netif_up()?;
+        log::info!("WiFi netif up.");
+
+        configure_mdns(&mut self.mdns.lock().unwrap(), &self.hostname)?;
 
         Ok(())
     }
@@ -134,6 +139,21 @@ impl RequestHandler {
     }
 }
 
+fn backoff(backoff_duration: &mut Duration) {
+    if *backoff_duration > Duration::ZERO {
+        log::info!(
+            "Waiting {}s before making a reconnection attempt.",
+            backoff_duration.as_secs()
+        );
+
+        std::thread::sleep(*backoff_duration);
+    }
+
+    if *backoff_duration < BACKOFF_DURATION_MAX {
+        *backoff_duration += BACKOFF_DURATION_STEP;
+    }
+}
+
 fn connect_and_retry(
     wifi: &mut BlockingWifi<EspWifi<'static>>,
     mdns: Arc<Mutex<EspMdns>>,
@@ -146,18 +166,7 @@ fn connect_and_retry(
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
                 log::warn!("WiFi connection timed out. Retrying...");
 
-                if backoff_duration > Duration::ZERO {
-                    log::info!(
-                        "Waiting {}s before making a reconnection attempt.",
-                        backoff_duration.as_secs()
-                    );
-
-                    std::thread::sleep(backoff_duration);
-                }
-
-                if backoff_duration < BACKOFF_DURATION_MAX {
-                    backoff_duration += BACKOFF_DURATION_STEP;
-                }
+                backoff(&mut backoff_duration);
 
                 continue;
             }
@@ -226,9 +235,13 @@ pub fn keep_alive(
     mdns: Arc<Mutex<EspMdns>>,
     hostname: String,
 ) -> anyhow::Result<EspSubscription<'static, eventloop::System>> {
+    let mut backoff_duration = BACKOFF_DURATION_START;
+
     Ok(eventloop.subscribe::<WifiEvent, _>(move |event| {
         if let WifiEvent::StaDisconnected = event {
             log::warn!("WiFi disconnected. Reconnecting...");
+
+            backoff(&mut backoff_duration);
 
             let request = ReconnectRequest {
                 hostname: hostname.clone(),
