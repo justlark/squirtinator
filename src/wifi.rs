@@ -2,6 +2,7 @@ use std::{
     any::Any,
     net::Ipv4Addr,
     sync::{mpsc, Arc, Mutex},
+    time::Duration,
 };
 
 use anyhow::anyhow;
@@ -15,6 +16,12 @@ use esp_idf_svc::{
 };
 
 use crate::config::Config;
+
+// We're pretty greedy with the reconnection backoff, because it's quite frustrating when your sex
+// toy disconnects mid-session and takes a while to reconnect.
+const BACKOFF_DURATION_START: Duration = Duration::ZERO;
+const BACKOFF_DURATION_MAX: Duration = Duration::from_secs(5);
+const BACKOFF_DURATION_STEP: Duration = Duration::from_secs(1);
 
 // This is a mechanism for sending requests to the WiFi driver and receiving responses. It allows
 // us to avoid having to pass around the WiFi driver. Instead, there's a dedicated thread that owns
@@ -112,10 +119,26 @@ impl RequestHandler {
 }
 
 fn connect_and_retry(wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
+    let mut backoff_duration = BACKOFF_DURATION_START;
+
     loop {
         match wifi.connect() {
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
                 log::warn!("WiFi connection timed out. Retrying...");
+
+                if backoff_duration > Duration::ZERO {
+                    log::info!(
+                        "Waiting {}s before making a reconnection attempt.",
+                        backoff_duration.as_secs()
+                    );
+
+                    std::thread::sleep(backoff_duration);
+                }
+
+                if backoff_duration < BACKOFF_DURATION_MAX {
+                    backoff_duration += BACKOFF_DURATION_STEP;
+                }
+
                 continue;
             }
             Err(err) => return Err(err.into()),
