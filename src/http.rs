@@ -9,19 +9,19 @@ use esp_idf_svc::{
     wifi::EspWifi,
 };
 
-use crate::{config::HttpConfig, gpio::Action};
+use crate::{config::Config, gpio::Action};
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const CSS: &[u8] = include_bytes!("../client/index.css");
 const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
 pub fn serve(
-    config: &HttpConfig,
+    config: &Config,
     wifi: EspWifi<'static>,
     action: Arc<Mutex<dyn Action>>,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let server_config = Configuration {
-        http_port: config.port,
+        http_port: config.http.port,
         ..Default::default()
     };
 
@@ -75,6 +75,8 @@ pub fn serve(
         },
     )?;
 
+    let hostname = config.wifi.hostname.clone();
+
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
         let mut resp = req.into_response(200, None, &[("Content-Type", "text/html")])?;
         let addr = if wifi.driver().is_sta_connected()? {
@@ -86,10 +88,13 @@ pub fn serve(
         let body = match addr {
             Some(addr) => format!(
                 "
-                <p>Your Squirtinator is connected to WiFi at this address:</p>
-                <p>http://{}</p>
+                <p>Your Squirtinator is connected to WiFi:</p>
+                <p>
+                  http://{}.local<br />
+                  http://{}
+                </p>
                 ",
-                addr
+                &hostname, addr,
             ),
             None => String::from(
                 "

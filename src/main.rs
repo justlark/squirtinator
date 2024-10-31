@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
 
     // Don't drop these.
     let wifi = wifi::start(&config, peripherals.modem, sysloop)?;
-    let _server = http::serve(&config.http, wifi, Arc::clone(&action))?;
+    let _server = http::serve(&config, wifi, Arc::clone(&action))?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
     // here because `std::thread::park()` does not guarantee that threads will stay parked forever.
