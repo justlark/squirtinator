@@ -155,6 +155,7 @@ fn connect_with_retry(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Resu
 fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
     log::info!("Configuring mDNS with hostname: {}", hostname);
     mdns.set_hostname(hostname)?;
+    mdns.set_instance_name(hostname)?;
     Ok(())
 }
 

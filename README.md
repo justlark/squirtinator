@@ -26,8 +26,7 @@ you can stay on your own WiFi and don't have to switch networks. To do this:
 3. Click "Save" and restart the toy (unplug it and plug it back in).
 
 When it powers back on, you should be able to access it at
-<http://squirtinator.local>. If that's not working, try turning your device's
-WiFi off and back on again.
+<http://squirtinator.local>.
 
 ## Hardware
 
