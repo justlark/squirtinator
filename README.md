@@ -10,6 +10,25 @@ designed for mobile. It doesn't need an internet connection, a local network,
 or any apps to function. You can control it either via its own WiFi hotspot or
 by connecting it to your local network.
 
+## Usage
+
+1. Connect the toy to power.
+2. Connect to the toy's WiFi hotspot, called `Squirtinator` by default.
+3. Open your browser and go to <http://192.168.0.1>. You may need to turn off
+   mobile data if you're on a cellular device.
+
+From here, you can control the toy in your browser by staying connected to its
+WiFi hotspot. However, you can also connect the toy to your local network so
+you can stay on your own WiFi and don't have to switch networks. To do this:
+
+1. Open the setting page in your browser.
+2. Enter your WiFi name (SSID) and password.
+3. Click "Save" and restart the toy (unplug it and plug it back in).
+
+When it powers back on, you should be able to access it at
+<http://squirtinator.local>. If that's not working, try turning your device's
+WiFi off and back on again.
+
 ## Hardware
 
 This project uses the open hardware [Rust ESP development
@@ -56,3 +75,17 @@ You can run any Cargo command like this:
 ```sh
 just cargo check
 ```
+
+## Troubleshooting
+
+- **I connected to the toy's WiFi hotspot and can't access it at its gateway
+  address (<http://192.168.0.1>)**: If you're on a cellular device, try turning
+  off mobile data.
+- **I connected my toy to my local network and can't access it over its
+  `.local` URL**: Try turning your device's WiFi off and back on again. Some
+  clients (like Flatpak apps on Linux) may not support connecting to devices
+  this way. In that case, you can access the toy by its IP address or its WiFi
+  hotspot.
+- **I'm getting cryptic errors when building `esp-idf-sys`**: Try deleting the
+  `./.embuild` directory and running `cargo clean` (**not** `just cargo
+  clean`). Then try again.
