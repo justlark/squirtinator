@@ -123,11 +123,7 @@ fn backoff(backoff_duration: &mut Duration) {
     }
 }
 
-fn connect_with_retry(
-    wifi: &mut BlockingWifi<EspWifi<'static>>,
-    mdns: Arc<Mutex<EspMdns>>,
-    hostname: &str,
-) -> anyhow::Result<()> {
+fn connect_with_retry(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
     let mut backoff_duration = BACKOFF_DURATION_START;
 
     loop {
@@ -145,8 +141,6 @@ fn connect_with_retry(
 
                 wifi.wait_netif_up()?;
                 log::info!("WiFi netif up.");
-
-                configure_mdns(&mut mdns.lock().unwrap(), hostname)?;
 
                 break;
             }
@@ -186,6 +180,7 @@ pub fn start(
     let mut wifi = BlockingWifi::wrap(esp_wifi, sysloop)?;
 
     wifi.set_configuration(&config.wifi_config()?)?;
+    configure_mdns(&mut mdns.lock().unwrap(), &config.wifi.hostname)?;
 
     log::info!("Starting WiFi...");
 
@@ -193,7 +188,7 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        connect_with_retry(&mut wifi, Arc::clone(&mdns), &config.wifi.hostname)?;
+        connect_with_retry(&mut wifi)?;
     }
 
     Ok(RequestHandler::new(wifi))
