@@ -16,12 +16,16 @@ use esp_idf_svc::{
 
 use crate::config::Config;
 
+// This is a mechanism for sending requests to the WiFi driver and receiving responses. It allows
+// us to avoid having to pass around the WiFi driver. Instead, there's a dedicated thread that owns
+// the driver and processes requests over channels.
 pub trait Request {
     type Response;
 
     fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<Self::Response>;
 }
 
+// A request which gets the current IP address of the WiFi STA interface.
 #[derive(Debug)]
 pub struct IpAddrRequest;
 
@@ -37,6 +41,7 @@ impl Request for IpAddrRequest {
     }
 }
 
+// A request which reconnects the WiFi STA interface.
 #[derive(Debug)]
 pub struct ReconnectRequest;
 
