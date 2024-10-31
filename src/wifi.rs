@@ -1,13 +1,17 @@
-use std::{any::Any, net::Ipv4Addr, sync::mpsc};
+use std::{
+    any::Any,
+    net::Ipv4Addr,
+    sync::{mpsc, Arc, Mutex},
+};
 
 use anyhow::anyhow;
 use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
+    eventloop::{self, EspSubscription, EspSystemEventLoop},
     hal::peripheral,
     netif::EspNetif,
     nvs::{EspNvsPartition, NvsDefault},
     sys::ESP_ERR_TIMEOUT,
-    wifi::{BlockingWifi, EspWifi, WifiDriver},
+    wifi::{BlockingWifi, EspWifi, WifiDriver, WifiEvent},
 };
 
 use crate::config::Config;
@@ -30,6 +34,19 @@ impl Request for IpAddrRequest {
         } else {
             None
         }))
+    }
+}
+
+#[derive(Debug)]
+pub struct ReconnectRequest;
+
+impl Request for ReconnectRequest {
+    type Response = ();
+
+    fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
+        wifi.connect()?;
+        log::info!("WiFi reconnected!");
+        Ok(())
     }
 }
 
@@ -159,4 +176,19 @@ pub fn start(
     configure_mdns(&config.wifi.hostname)?;
 
     Ok(RequestHandler::new(esp_wifi))
+}
+
+pub fn keep_alive(
+    eventloop: &EspSystemEventLoop,
+    handler: Arc<Mutex<RequestHandler>>,
+) -> anyhow::Result<EspSubscription<'static, eventloop::System>> {
+    Ok(eventloop.subscribe::<WifiEvent, _>(move |event| {
+        if let WifiEvent::StaDisconnected = event {
+            log::warn!("WiFi disconnected. Reconnecting...");
+
+            if let Err(err) = handler.lock().unwrap().request(ReconnectRequest) {
+                log::error!("Failed to reconnect WiFi: {}", err);
+            }
+        }
+    })?)
 }
