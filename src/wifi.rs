@@ -44,8 +44,10 @@ impl Request for ReconnectRequest {
     type Response = ();
 
     fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
-        wifi.connect()?;
+        connect_and_retry(wifi)?;
+
         log::info!("WiFi reconnected!");
+
         Ok(())
     }
 }
@@ -104,6 +106,21 @@ impl RequestHandler {
     }
 }
 
+fn connect_and_retry(wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
+    loop {
+        match wifi.connect() {
+            Err(err) if err.code() == ESP_ERR_TIMEOUT => {
+                log::warn!("WiFi connection timed out. Retrying...");
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+            Ok(_) => break,
+        }
+    }
+
+    Ok(())
+}
+
 #[allow(unused_variables)]
 fn configure_mdns(hostname: &str) -> anyhow::Result<bool> {
     #[cfg(esp_idf_comp_espressif__mdns_enabled)]
@@ -155,17 +172,7 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        loop {
-            match wifi.connect() {
-                Err(err) if err.code() == ESP_ERR_TIMEOUT => {
-                    log::warn!("WiFi connection timed out. Retrying...");
-                    continue;
-                }
-                Err(err) => return Err(err.into()),
-                Ok(_) => break,
-            }
-        }
-
+        connect_and_retry(wifi.wifi_mut())?;
         log::info!("WiFi connected.");
     }
 
