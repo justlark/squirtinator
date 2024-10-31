@@ -1,5 +1,8 @@
 # Settings for a local WiFi network for the toy to connect to. This allows you
-# to access the toy without having to switch to its own WiFi network.
+# to access the toy without having to switch to its own WiFi network. You can
+# configure the SSID and password in the UI without needing to reflash the
+# firmware; these settings are just the defaults, which gives you the option to
+# have WiFi configured out of the box.
 [wifi]
 # The hostname of the toy on the local network. If the hostname is `foo`, you
 # can access the toy at `http://foo.local` (with clients that support mDNS).
