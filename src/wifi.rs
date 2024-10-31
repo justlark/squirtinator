@@ -1,3 +1,5 @@
+use std::{any::Any, net::Ipv4Addr, sync::mpsc};
+
 use anyhow::anyhow;
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
@@ -9,6 +11,81 @@ use esp_idf_svc::{
 };
 
 use crate::config::Config;
+
+pub trait Request {
+    type Response;
+
+    fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<Self::Response>;
+}
+
+#[derive(Debug)]
+pub struct IpAddrRequest;
+
+impl Request for IpAddrRequest {
+    type Response = Box<Option<Ipv4Addr>>;
+
+    fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<Box<Option<Ipv4Addr>>> {
+        Ok(Box::new(if wifi.driver().is_sta_connected()? {
+            Some(wifi.sta_netif().get_ip_info()?.ip)
+        } else {
+            None
+        }))
+    }
+}
+
+type RequestHandlerFn =
+    Box<dyn FnOnce(&mut EspWifi<'static>) -> anyhow::Result<Box<dyn Any + Send>> + Send>;
+
+pub struct RequestHandler {
+    requests: mpsc::SyncSender<RequestHandlerFn>,
+    responses: mpsc::Receiver<anyhow::Result<Box<dyn Any + Send>>>,
+}
+
+impl RequestHandler {
+    pub fn new(mut wifi: EspWifi<'static>) -> Self {
+        let (request_sender, request_receiver) = mpsc::sync_channel::<RequestHandlerFn>(0);
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+
+        // We can safely detach this thread because it will end when the sending half of the
+        // channel is dropped, so there's no need to join it.
+        std::thread::spawn(move || {
+            while let Ok(request_fn) = request_receiver.recv() {
+                let response = request_fn(&mut wifi);
+                response_sender
+                    .send(response)
+                    .expect("WiFi request response channel closed.");
+            }
+        });
+
+        Self {
+            requests: request_sender,
+            responses: response_receiver,
+        }
+    }
+    pub fn request<T>(&mut self, request: T) -> anyhow::Result<T::Response>
+    where
+        T: Request + Send + 'static,
+        T::Response: Send,
+    {
+        self.requests
+            .send(Box::new(|wifi: &mut EspWifi| {
+                let request = request;
+                let response = request.respond(wifi)?;
+                Ok(Box::new(response))
+            }))
+            .map_err(|_| anyhow!("WiFi request thread has exited."))?;
+
+        self.responses
+            .recv()
+            .map_err(|_| anyhow!("WiFi request thread has exited."))?
+            .and_then(|response| {
+                response
+                    .downcast::<T::Response>()
+                    .map_err(|_| anyhow!("WiFi request response type mismatch."))
+            })
+            .map(|response| *response)
+    }
+}
 
 #[allow(unused_variables)]
 fn configure_mdns(hostname: &str) -> anyhow::Result<bool> {
@@ -37,7 +114,7 @@ pub fn start(
     config: &Config,
     modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     sysloop: EspSystemEventLoop,
-) -> anyhow::Result<EspWifi<'static>> {
+) -> anyhow::Result<RequestHandler> {
     if config.access_point.ssid.is_empty() {
         return Err(anyhow!("Access point WiFi SSID cannot be empty."));
     }
@@ -81,5 +158,5 @@ pub fn start(
     // Set up mDNS for local network discovery.
     configure_mdns(&config.wifi.hostname)?;
 
-    Ok(esp_wifi)
+    Ok(RequestHandler::new(esp_wifi))
 }

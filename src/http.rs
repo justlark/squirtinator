@@ -6,10 +6,9 @@ use esp_idf_svc::{
         Method,
     },
     io::Write,
-    wifi::EspWifi,
 };
 
-use crate::{config::Config, gpio::Action};
+use crate::{config::Config, gpio::Action, wifi};
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const CSS: &[u8] = include_bytes!("../client/index.css");
@@ -17,7 +16,7 @@ const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
 pub fn serve(
     config: &Config,
-    wifi: EspWifi<'static>,
+    wifi: Arc<Mutex<wifi::RequestHandler>>,
     action: Arc<Mutex<dyn Action>>,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let server_config = Configuration {
@@ -79,13 +78,14 @@ pub fn serve(
 
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
         let mut resp = req.into_response(200, None, &[("Content-Type", "text/html")])?;
-        let addr = if wifi.driver().is_sta_connected()? {
-            Some(wifi.sta_netif().get_ip_info()?.ip)
-        } else {
-            None
-        };
+        let addr = wifi.lock().unwrap().request(wifi::IpAddrRequest)?;
+        // let addr = if wifi.driver().is_sta_connected()? {
+        //     Some(wifi.sta_netif().get_ip_info()?.ip)
+        // } else {
+        //     None
+        // };
 
-        let body = match addr {
+        let body = match *addr {
             Some(addr) => format!(
                 "
                 <p>Your Squirtinator is connected to WiFi:</p>
