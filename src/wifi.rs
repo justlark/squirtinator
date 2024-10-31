@@ -1,6 +1,5 @@
 use std::{
     any::Any,
-    fmt,
     net::Ipv4Addr,
     sync::{mpsc, Arc, Mutex},
     time::Duration,
@@ -9,7 +8,7 @@ use std::{
 use anyhow::anyhow;
 use esp_idf_svc::{
     eventloop::{self, EspSubscription, EspSystemEventLoop},
-    hal::peripheral,
+    hal,
     mdns::EspMdns,
     netif::EspNetif,
     nvs::{EspNvsPartition, NvsDefault},
@@ -51,36 +50,6 @@ impl Request for IpAddrRequest {
         } else {
             None
         }))
-    }
-}
-
-// A request which reconnects the WiFi STA interface.
-pub struct ReconnectRequest {
-    hostname: String,
-    mdns: Arc<Mutex<EspMdns>>,
-}
-
-impl fmt::Debug for ReconnectRequest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReconnectRequest")
-            .field("hostname", &self.hostname)
-            .finish_non_exhaustive()
-    }
-}
-
-impl Request for ReconnectRequest {
-    type Response = ();
-
-    fn respond(&self, wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
-        wifi.connect()?;
-        log::info!("WiFi reconnected!");
-
-        wifi.wait_netif_up()?;
-        log::info!("WiFi netif up.");
-
-        configure_mdns(&mut self.mdns.lock().unwrap(), &self.hostname)?;
-
-        Ok(())
     }
 }
 
@@ -154,7 +123,7 @@ fn backoff(backoff_duration: &mut Duration) {
     }
 }
 
-fn connect_and_retry(
+fn connect_with_retry(
     wifi: &mut BlockingWifi<EspWifi<'static>>,
     mdns: Arc<Mutex<EspMdns>>,
     hostname: &str,
@@ -172,6 +141,8 @@ fn connect_and_retry(
             }
             Err(err) => return Err(err.into()),
             Ok(_) => {
+                log::info!("WiFi connected.");
+
                 wifi.wait_netif_up()?;
                 log::info!("WiFi netif up.");
 
@@ -188,14 +159,14 @@ fn connect_and_retry(
 // Set up mDNS for local network discovery.
 #[allow(unused_variables)]
 fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
-    log::info!("Configuring mDNS hostname: {}", hostname);
+    log::info!("Configuring mDNS with hostname: {}", hostname);
     mdns.set_hostname(hostname)?;
     Ok(())
 }
 
 pub fn start(
     config: &Config,
-    modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
+    modem: impl hal::peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
     mdns: Arc<Mutex<EspMdns>>,
     sysloop: EspSystemEventLoop,
 ) -> anyhow::Result<RequestHandler> {
@@ -222,35 +193,24 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        connect_and_retry(&mut wifi, Arc::clone(&mdns), &config.wifi.hostname)?;
-        log::info!("WiFi connected.");
+        connect_with_retry(&mut wifi, Arc::clone(&mdns), &config.wifi.hostname)?;
     }
 
     Ok(RequestHandler::new(wifi))
 }
 
-pub fn keep_alive(
+pub fn reset_on_disconnect(
     eventloop: &EspSystemEventLoop,
-    handler: Arc<Mutex<RequestHandler>>,
-    mdns: Arc<Mutex<EspMdns>>,
-    hostname: String,
 ) -> anyhow::Result<EspSubscription<'static, eventloop::System>> {
-    let mut backoff_duration = BACKOFF_DURATION_START;
-
     Ok(eventloop.subscribe::<WifiEvent, _>(move |event| {
         if let WifiEvent::StaDisconnected = event {
-            log::warn!("WiFi disconnected. Reconnecting...");
+            log::warn!("WiFi disconnected. Resetting...");
 
-            backoff(&mut backoff_duration);
-
-            let request = ReconnectRequest {
-                hostname: hostname.clone(),
-                mdns: Arc::clone(&mdns),
-            };
-
-            if let Err(err) = handler.lock().unwrap().request(request) {
-                log::error!("Failed to reconnect WiFi: {}", err);
-            }
+            // There is probably a more elegant solution to reconnecting to WiFi, but I wasn't able
+            // to figure it out. This approach has the benefit of ensuring the toy stops whatever
+            // it's doing once it disconnects (and the user isn't able to control it anymore). This
+            // is an important safety feature for a sex toy.
+            hal::reset::restart();
         }
     })?)
 }

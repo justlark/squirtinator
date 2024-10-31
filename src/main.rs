@@ -33,14 +33,12 @@ fn main() -> anyhow::Result<()> {
 
     let mdns = Arc::new(Mutex::new(EspMdns::take()?));
 
-    let wifi_request_handler = wifi::start(
+    let wifi_request_handler = Arc::new(Mutex::new(wifi::start(
         &config,
         peripherals.modem,
         Arc::clone(&mdns),
         sysloop.clone(),
-    )?;
-
-    let wifi_request_handler = Arc::new(Mutex::new(wifi_request_handler));
+    )?));
 
     // Don't drop this.
     let _server = http::serve(
@@ -50,12 +48,7 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     // Don't drop this.
-    let _subscription = wifi::keep_alive(
-        &sysloop,
-        Arc::clone(&wifi_request_handler),
-        Arc::clone(&mdns),
-        config.wifi.hostname.clone(),
-    )?;
+    let _subscription = wifi::reset_on_disconnect(&sysloop)?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
     // here because `std::thread::park()` does not guarantee that threads will stay parked forever.
