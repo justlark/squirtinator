@@ -44,7 +44,11 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     // Don't drop this.
-    let _subscription = wifi::keep_alive(&sysloop, Arc::clone(&wifi_request_handler))?;
+    let _subscription = wifi::keep_alive(
+        &sysloop,
+        Arc::clone(&wifi_request_handler),
+        config.wifi.hostname.clone(),
+    )?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
     // here because `std::thread::park()` does not guarantee that threads will stay parked forever.

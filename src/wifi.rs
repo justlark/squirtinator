@@ -29,7 +29,7 @@ const BACKOFF_DURATION_STEP: Duration = Duration::from_secs(1);
 pub trait Request {
     type Response;
 
-    fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<Self::Response>;
+    fn respond(&self, wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<Self::Response>;
 }
 
 // A request which gets the current IP address of the WiFi STA interface.
@@ -39,9 +39,12 @@ pub struct IpAddrRequest;
 impl Request for IpAddrRequest {
     type Response = Box<Option<Ipv4Addr>>;
 
-    fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<Box<Option<Ipv4Addr>>> {
-        Ok(Box::new(if wifi.driver().is_sta_connected()? {
-            Some(wifi.sta_netif().get_ip_info()?.ip)
+    fn respond(
+        &self,
+        wifi: &mut BlockingWifi<EspWifi<'static>>,
+    ) -> anyhow::Result<Box<Option<Ipv4Addr>>> {
+        Ok(Box::new(if wifi.wifi().driver().is_sta_connected()? {
+            Some(wifi.wifi().sta_netif().get_ip_info()?.ip)
         } else {
             None
         }))
@@ -50,13 +53,15 @@ impl Request for IpAddrRequest {
 
 // A request which reconnects the WiFi STA interface.
 #[derive(Debug)]
-pub struct ReconnectRequest;
+pub struct ReconnectRequest {
+    hostname: String,
+}
 
 impl Request for ReconnectRequest {
     type Response = ();
 
-    fn respond(&self, wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
-        connect_and_retry(wifi)?;
+    fn respond(&self, wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
+        connect_and_retry(wifi, &self.hostname)?;
 
         log::info!("WiFi reconnected!");
 
@@ -64,8 +69,9 @@ impl Request for ReconnectRequest {
     }
 }
 
-type RequestHandlerFn =
-    Box<dyn FnOnce(&mut EspWifi<'static>) -> anyhow::Result<Box<dyn Any + Send>> + Send>;
+type RequestHandlerFn = Box<
+    dyn FnOnce(&mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<Box<dyn Any + Send>> + Send,
+>;
 
 pub struct RequestHandler {
     requests: mpsc::SyncSender<RequestHandlerFn>,
@@ -73,7 +79,7 @@ pub struct RequestHandler {
 }
 
 impl RequestHandler {
-    pub fn new(mut wifi: EspWifi<'static>) -> Self {
+    pub fn new(mut wifi: BlockingWifi<EspWifi<'static>>) -> Self {
         let (request_sender, request_receiver) = mpsc::sync_channel::<RequestHandlerFn>(0);
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
 
@@ -99,7 +105,7 @@ impl RequestHandler {
         T::Response: Send,
     {
         self.requests
-            .send(Box::new(|wifi: &mut EspWifi| {
+            .send(Box::new(|wifi: &mut BlockingWifi<EspWifi<'static>>| {
                 let request = request;
                 let response = request.respond(wifi)?;
                 Ok(Box::new(response))
@@ -118,7 +124,10 @@ impl RequestHandler {
     }
 }
 
-fn connect_and_retry(wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
+fn connect_and_retry(
+    wifi: &mut BlockingWifi<EspWifi<'static>>,
+    hostname: &str,
+) -> anyhow::Result<()> {
     let mut backoff_duration = BACKOFF_DURATION_START;
 
     loop {
@@ -142,13 +151,21 @@ fn connect_and_retry(wifi: &mut EspWifi<'static>) -> anyhow::Result<()> {
                 continue;
             }
             Err(err) => return Err(err.into()),
-            Ok(_) => break,
+            Ok(_) => {
+                wifi.wait_netif_up()?;
+                log::info!("WiFi netif up.");
+
+                configure_mdns(hostname)?;
+
+                break;
+            }
         }
     }
 
     Ok(())
 }
 
+// Set up mDNS for local network discovery.
 #[allow(unused_variables)]
 fn configure_mdns(hostname: &str) -> anyhow::Result<bool> {
     #[cfg(esp_idf_comp_espressif__mdns_enabled)]
@@ -184,13 +201,13 @@ pub fn start(
     let nvs_part = EspNvsPartition::<NvsDefault>::take()?;
 
     let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
-    let mut esp_wifi = EspWifi::wrap_all(
+    let esp_wifi = EspWifi::wrap_all(
         wifi_driver,
         EspNetif::new_with_conf(&config.wifi.netif_config()?)?,
         EspNetif::new_with_conf(&config.access_point.netif_config()?)?,
     )?;
 
-    let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
+    let mut wifi = BlockingWifi::wrap(esp_wifi, sysloop)?;
 
     wifi.set_configuration(&config.wifi_config()?)?;
 
@@ -200,28 +217,27 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        connect_and_retry(wifi.wifi_mut())?;
+        connect_and_retry(&mut wifi, &config.wifi.hostname)?;
         log::info!("WiFi connected.");
     }
 
-    wifi.wait_netif_up()?;
-    log::info!("WiFi netif up.");
-
-    // Set up mDNS for local network discovery.
-    configure_mdns(&config.wifi.hostname)?;
-
-    Ok(RequestHandler::new(esp_wifi))
+    Ok(RequestHandler::new(wifi))
 }
 
 pub fn keep_alive(
     eventloop: &EspSystemEventLoop,
     handler: Arc<Mutex<RequestHandler>>,
+    hostname: String,
 ) -> anyhow::Result<EspSubscription<'static, eventloop::System>> {
     Ok(eventloop.subscribe::<WifiEvent, _>(move |event| {
         if let WifiEvent::StaDisconnected = event {
             log::warn!("WiFi disconnected. Reconnecting...");
 
-            if let Err(err) = handler.lock().unwrap().request(ReconnectRequest) {
+            let request = ReconnectRequest {
+                hostname: hostname.clone(),
+            };
+
+            if let Err(err) = handler.lock().unwrap().request(request) {
                 log::error!("Failed to reconnect WiFi: {}", err);
             }
         }
