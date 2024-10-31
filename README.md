@@ -3,18 +3,12 @@
 🚧 This repo is under construction. 🚧
 
 The Squirtinator is a DIY sex toy that uses a peristaltic pump to deliver lube
-through a tube at high velocity. It can be remotely controlled over WiFi via a
-self-hosted web interface designed for mobile, and it supports both manual and
-automatic modes of operation.
+through a tube at high velocity.
 
-## Usage
-
-Once you've assembled your Squirtinator and flashed the firmware, power it on
-and connect to its WiFi network, called `Squirtinator` by default. You may need
-to disconnect from cellular data.
-
-Once connected, you can navigate to http://192.168.69.1 to access the web
-interface.
+It can be remotely controlled over WiFi via a self-hosted web interface
+designed for mobile. It doesn't need an internet connection, a local network,
+or any apps to function. You can control it either via its own WiFi hotspot or
+by connecting it to your local network.
 
 ## Hardware
 
