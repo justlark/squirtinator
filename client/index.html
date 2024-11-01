@@ -5,7 +5,7 @@
     <title>Squirtinator Remote</title>
     <meta name="description" content="Remote controls for your Squirtinator" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" type="text/css" href="/assets/index.css" />
+    <link rel="stylesheet" type="text/css" href="/index.css" />
   </head>
   <body>
     <script src="/assets/htmx.min.js"></script>
@@ -15,7 +15,11 @@
         NOW
       </button>
       <button id="auto-button" role="switch" aria-checked="false">AUTO</button>
-      <a id="settings-link" class="nav-button" href="/settings">
+      <a
+        id="settings-link"
+        class="nav-button nav-button-forward"
+        href="/settings"
+      >
         <span>SETTINGS</span>
         <svg
           aria-hidden="true"

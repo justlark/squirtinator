@@ -39,7 +39,7 @@
   --font-size-base: 16px;
   --border-radius: 5px;
   --border-width: 1px;
-  --border-width-active: 2x;
+  --border-width-active: 2px;
 }
 
 html {
@@ -62,6 +62,7 @@ body {
 
 body > h1 {
   margin-top: 2rem;
+  margin-bottom: 1.5rem;
   text-align: center;
 }
 
@@ -78,6 +79,10 @@ input {
   outline-offset: 0;
   border: none;
   border-radius: var(--border-radius);
+}
+
+:is(button, .nav-button) {
+  font-size: 1.2rem;
 }
 
 button {
@@ -130,13 +135,21 @@ button[role="switch"][aria-checked="true"],
 }
 
 .nav-button {
-  box-sizing: border-box;
   display: flex;
-  justify-content: space-between;
+  gap: 1rem;
+  box-sizing: border-box;
   align-items: center;
   color: var(--color-fg);
   text-decoration: none;
   padding: 1rem;
+}
+
+.nav-button-forward {
+  justify-content: space-between;
+}
+
+.nav-button-back {
+  justify-content: start;
 }
 
 .nav-button:hover {
@@ -158,6 +171,10 @@ form h2 {
   margin-bottom: 0;
 }
 
+form > h2:first-of-type {
+  margin-top: 0;
+}
+
 input {
   font-family: "Roboto", sans-serif;
   font-size: var(--font-size-base);
@@ -166,13 +183,16 @@ input {
   padding: 0.5rem;
 }
 
+hr {
+  border: none;
+  border-top: var(--border-width-active) solid var(--color-border);
+  width: 100%;
+  margin: 2rem 0;
+}
+
 #remote > * {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
-}
-
-#remote > :is(button, .nav-button) {
-  font-size: 1.2rem;
 }
 
 #remote {
@@ -193,7 +213,8 @@ input {
 }
 
 #auto-button,
-#settings-link {
+#settings-link,
+#remote-link {
   min-height: 5rem;
 }
 
