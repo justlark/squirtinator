@@ -63,7 +63,7 @@ pub async fn connect(
 }
 
 // Set up mDNS for local network discovery.
-fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
+pub fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
     log::info!("Configuring mDNS with hostname: {}", hostname);
     mdns.set_hostname(hostname)?;
     mdns.set_instance_name(hostname)?;
@@ -73,7 +73,6 @@ fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
 pub async fn init(
     config: &Config,
     modem: impl Peripheral<P = Modem> + 'static,
-    mdns: &mut EspMdns,
     nvs_part: EspDefaultNvsPartition,
     sysloop: EspSystemEventLoop,
     timer_service: EspTaskTimerService,
@@ -92,7 +91,6 @@ pub async fn init(
     let mut wifi = AsyncWifi::wrap(esp_wifi, sysloop, timer_service)?;
 
     wifi.set_configuration(&config.wifi_config()?)?;
-    configure_mdns(mdns, &config.wifi.hostname)?;
 
     log::info!("Starting WiFi...");
 

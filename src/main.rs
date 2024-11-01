@@ -46,12 +46,9 @@ fn main() -> anyhow::Result<()> {
         config.io.duration(),
     )?));
 
-    let mut mdns = EspMdns::take()?;
-
     let wifi = Arc::new(Mutex::new(block_on(wifi::init(
         &config,
         peripherals.modem,
-        &mut mdns,
         nvs_part.clone(),
         sysloop.clone(),
         timer_servie,
@@ -75,8 +72,11 @@ fn main() -> anyhow::Result<()> {
         Arc::clone(&action),
     )?;
 
+    let mut mdns = EspMdns::take()?;
+
     // Don't drop this.
     let _subscription = if block_on(connected)? {
+        wifi::configure_mdns(&mut mdns, &config.wifi.hostname)?;
         Some(wifi::reset_on_disconnect(&sysloop)?)
     } else {
         None
