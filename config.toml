@@ -4,19 +4,22 @@
 # the firmware; these settings are just the defaults, which gives you the
 # option to have WiFi configured out of the box.
 [wifi]
-# The hostname of the toy on the local network. If the hostname is `foo`, you
-# can access the toy at `http://foo.local` (with clients that support mDNS).
-# Change this if you plan to have multiple Squirtinators on the same network.
-hostname = "squirtinator"
-# The timeout between connection attempts, in seconds.
-timeout = 15
-# The number of attempts the toy will make the connect to the local network
-# before falling back to only running in access point mode.
-max_attempts = 4
 # Configuring an SSID will prompt the toy to try and connect to the local
 # network.
 #ssid = "MyNetwork"
 #password = "12345"
+
+# The hostname of the toy on the local network. If the hostname is `foo`, you
+# can access the toy at `http://foo.local` (with clients that support mDNS).
+# Change this if you plan to have multiple Squirtinators on the same network.
+hostname = "squirtinator"
+
+# The timeout between connection attempts, in seconds.
+timeout = 15
+
+# The number of attempts the toy will make to connect to the local network
+# before falling back to only running in access point mode.
+max_attempts = 4
 
   # You can optionally assign the toy a static IP address on the local network.
   #[wifi.static]
@@ -30,10 +33,10 @@ max_attempts = 4
 # avoid a chicken-and-egg problem).
 [access_point]
 ssid = "Squirtinator"
+#password = "correct horse battery staple"
 hidden = false
 gateway = "192.168.0.1"
 #channel = 1
-#password = "correct horse battery staple"
 
 [http]
 port = 80
