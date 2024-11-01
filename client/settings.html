@@ -14,7 +14,7 @@
       <form
         id="wifi-form"
         hx-put="/api/settings/wifi"
-        hx-swap="none"
+        hx-target="#wifi-form-confirmation"
         aria-labelledby="wifi-form-heading"
       >
         <h2 id="wifi-form-heading">WiFi</h2>
@@ -23,6 +23,7 @@
         <label for="password-input">Password</label>
         <input id="password-input" name="password" type="password" />
         <button type="submit" form="wifi-form">SAVE</button>
+        <div id="wifi-form-confirmation"></div>
       </form>
     </main>
   </body>
