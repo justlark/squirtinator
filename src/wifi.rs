@@ -2,7 +2,6 @@ use std::{
     any::Any,
     net::Ipv4Addr,
     sync::{mpsc, Arc, Mutex},
-    time::Duration,
 };
 
 use anyhow::anyhow;
@@ -17,13 +16,6 @@ use esp_idf_svc::{
 };
 
 use crate::config::Config;
-
-// We're pretty greedy with the reconnection backoff, because it's quite frustrating when your sex
-// toy disconnects mid-session and takes a while to reconnect. Hence linear rather than exponential
-// backoff.
-const BACKOFF_DURATION_START: Duration = Duration::from_secs(1);
-const BACKOFF_DURATION_MAX: Duration = Duration::from_secs(5);
-const BACKOFF_DURATION_STEP: Duration = Duration::from_secs(1);
 
 // This is a mechanism for sending requests to the WiFi driver and receiving responses. It allows
 // us to avoid having to pass around the WiFi driver. Instead, there's a dedicated thread that owns
@@ -108,31 +100,18 @@ impl RequestHandler {
     }
 }
 
-fn backoff(backoff_duration: &mut Duration) {
-    if *backoff_duration > Duration::ZERO {
-        log::info!(
-            "Waiting {}s before making a reconnection attempt.",
-            backoff_duration.as_secs()
-        );
-
-        std::thread::sleep(*backoff_duration);
-    }
-
-    if *backoff_duration < BACKOFF_DURATION_MAX {
-        *backoff_duration += BACKOFF_DURATION_STEP;
-    }
-}
-
-fn connect_with_retry(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
-    let mut backoff_duration = BACKOFF_DURATION_START;
-
-    loop {
+fn connect_with_retry(
+    wifi: &mut BlockingWifi<EspWifi<'static>>,
+    max_attempts: u32,
+) -> anyhow::Result<bool> {
+    for i in 0..max_attempts {
         match wifi.connect() {
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
-                log::warn!("WiFi connection timed out. Retrying...");
-
-                backoff(&mut backoff_duration);
-
+                log::warn!(
+                    "WiFi connection timed out (attempt {} of {}). Retrying...",
+                    i + 1,
+                    max_attempts
+                );
                 continue;
             }
             Err(err) => return Err(err.into()),
@@ -142,12 +121,17 @@ fn connect_with_retry(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Resu
                 wifi.wait_netif_up()?;
                 log::info!("WiFi netif up.");
 
-                break;
+                return Ok(true);
             }
         }
     }
 
-    Ok(())
+    log::error!(
+        "Failed to connect to WiFi after {} attempts. Giving up.",
+        max_attempts
+    );
+
+    Ok(false)
 }
 
 // Set up mDNS for local network discovery.
@@ -188,7 +172,7 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        connect_with_retry(&mut wifi)?;
+        connect_with_retry(&mut wifi, config.wifi.max_attempts)?;
     }
 
     Ok(RequestHandler::new(wifi))

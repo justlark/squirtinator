@@ -37,6 +37,7 @@ pub struct WifiConfig {
     pub hostname: String,
     #[serde(rename = "static")]
     pub static_ip: Option<StaticWifiConfig>,
+    pub max_attempts: u32,
 }
 
 impl WifiConfig {
@@ -278,6 +279,7 @@ impl Config {
                 password: nvs.get_value("wifi.password")?.or(default.wifi.password),
                 hostname: default.wifi.hostname,
                 static_ip: default.wifi.static_ip,
+                max_attempts: default.wifi.max_attempts,
             },
             access_point: default.access_point,
             http: default.http,
