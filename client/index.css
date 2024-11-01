@@ -56,6 +56,7 @@ body {
   padding: 0 1.5rem;
   color: var(--color-fg);
   background-color: var(--color-bg);
+  accent-color: var(--color-primary);
   height: 100%;
 }
 
@@ -160,10 +161,21 @@ input {
   font-family: "Roboto", sans-serif;
   font-size: var(--font-size-base);
   color: var(--color-fg);
-  background-color: var(--color-bg);
+  background-color: transparent;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--border-radius);
   padding: 0.5rem;
+}
+
+/*
+ * This combination of outline and border styling avoids the visually thicker
+ * border shifting the content.
+ */
+:is(input, button):focus-visible {
+  border-color: transparent;
+  outline: var(--color-fg-active) solid var(--border-width-active);
+  outline-offset: 0;
+  background-color: var(--color-bg-active);
 }
 
 #remote > * {
