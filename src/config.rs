@@ -137,10 +137,16 @@ pub fn wifi_ssid<P: NvsPartitionId>(
 
 pub fn set_wifi_ssid<P: NvsPartitionId>(
     nvs_part: EspNvsPartition<P>,
-    ssid: &str,
+    ssid: Option<&str>,
 ) -> anyhow::Result<()> {
     let mut nvs = user_nvs(nvs_part)?;
-    nvs.set_str("wifi.ssid", ssid)?;
+
+    if let Some(ssid) = ssid {
+        nvs.set_str("wifi.ssid", ssid)?;
+    } else {
+        nvs.remove("wifi.ssid")?;
+    }
+
     Ok(())
 }
 
@@ -156,10 +162,16 @@ pub fn wifi_password<P: NvsPartitionId>(
 
 pub fn set_wifi_password<P: NvsPartitionId>(
     nvs_part: EspNvsPartition<P>,
-    password: &str,
+    password: Option<&str>,
 ) -> anyhow::Result<()> {
     let mut nvs = user_nvs(nvs_part)?;
-    nvs.set_str("wifi.password", password)?;
+
+    if let Some(password) = password {
+        nvs.set_str("wifi.password", password)?;
+    } else {
+        nvs.remove("wifi.password")?;
+    }
+
     Ok(())
 }
 

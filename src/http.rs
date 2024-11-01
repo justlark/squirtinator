@@ -61,11 +61,23 @@ struct WifiSettingsFormBody {
 
 impl WifiSettingsFormBody {
     fn save<P: NvsPartitionId>(&self, nvs_part: EspNvsPartition<P>) -> anyhow::Result<()> {
-        config::set_wifi_ssid(nvs_part.clone(), &self.ssid)?;
+        config::set_wifi_ssid(
+            nvs_part.clone(),
+            if self.ssid.trim().is_empty() {
+                None
+            } else {
+                Some(&self.ssid)
+            },
+        )?;
 
-        if !self.password.is_empty() {
-            config::set_wifi_password(nvs_part, &self.password)?;
-        }
+        config::set_wifi_password(
+            nvs_part.clone(),
+            if self.password.trim().is_empty() {
+                None
+            } else {
+                Some(&self.password)
+            },
+        )?;
 
         log::info!("WiFi settings saved.");
 
@@ -224,7 +236,6 @@ where
                           name="ssid"
                           type="text"
                           value="{}"
-                          required
                         />
                         "##,
                         ssid
