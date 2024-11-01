@@ -39,7 +39,7 @@
   --font-size-base: 16px;
   --border-radius: 5px;
   --border-width: 1px;
-  --border-width-active: 2px;
+  --border-width-active: 2x;
 }
 
 html {
@@ -71,21 +71,28 @@ body > h1 {
   }
 }
 
+button,
+.nav-button,
+input {
+  outline: var(--color-border) solid var(--border-width);
+  outline-offset: 0;
+  border: none;
+  border-radius: var(--border-radius);
+}
+
 button {
   font-family: "Roboto", sans-serif;
   font-size: var(--font-size-base);
   font-weight: bold;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius);
   color: var(--color-fg);
-  background-color: var(--color-bg);
+  background-color: transparent;
   padding: 1rem;
 }
 
-button:not(:active) {
+button:not(:active):not(:focus-visible) {
   transition-duration: 0.25s;
   transition-timing-function: ease-in-out;
-  transition-property: border-color, border-width, background-color;
+  transition-property: outline-color, outline-width, background-color;
 }
 
 /*
@@ -104,26 +111,22 @@ button:not(:active) {
 
   /*
    * On touch devices, the `background-color` should be animated alongside the
-   * `border-color` and `border-width` because it won't already be styled by
+   * `outline-color` and `outline-width` because it won't already be styled by
    * the `:hover`. We do *not* want this on non-touch devices, however, because
    * the UI will feel sluggish if there is a delay between the mouse hover and
    * the button changing color in response.
    */
-  button:not(:active) {
-    transition-property: border-color, border-width;
+  button:not(:active):not(:focus-visible) {
+    transition-property: outline-color, outline-width;
   }
 }
 
-button:active {
+button:active,
+button[role="switch"][aria-checked="true"],
+:is(input, button, .nav-button):focus-visible {
   background-color: var(--color-bg-active);
-  border-color: var(--color-fg-active);
-  border-width: var(--border-width-active);
-}
-
-button[role="switch"][aria-checked="true"] {
-  border-color: var(--color-fg-active);
-  background-color: var(--color-bg-active);
-  border-width: var(--border-width-active);
+  outline-color: var(--color-fg-active);
+  outline-width: var(--border-width-active);
 }
 
 .nav-button {
@@ -133,8 +136,6 @@ button[role="switch"][aria-checked="true"] {
   align-items: center;
   color: var(--color-fg);
   text-decoration: none;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius);
   padding: 1rem;
 }
 
@@ -162,20 +163,7 @@ input {
   font-size: var(--font-size-base);
   color: var(--color-fg);
   background-color: transparent;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius);
   padding: 0.5rem;
-}
-
-/*
- * This combination of outline and border styling avoids the visually thicker
- * border shifting the content.
- */
-:is(input, button):focus-visible {
-  border-color: transparent;
-  outline: var(--color-fg-active) solid var(--border-width-active);
-  outline-offset: 0;
-  background-color: var(--color-bg-active);
 }
 
 #remote > * {
