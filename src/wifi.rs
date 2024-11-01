@@ -20,18 +20,15 @@ pub async fn connect(
     timeout: Duration,
     max_attempts: u32,
 ) -> anyhow::Result<bool> {
+    let mut wifi = wifi.lock().await;
+
     for i in 0..max_attempts {
-        let wait_result = async {
-            let mut wifi = wifi.lock().await;
+        wifi.wifi_mut().connect()?;
 
-            wifi.wifi_mut().connect()?;
-
-            wifi.wifi_wait(
-                |this| this.wifi().driver().is_sta_connected().map(|s| !s),
-                Some(timeout),
-            )
-            .await
-        };
+        let wait_result = wifi.wifi_wait(
+            |this| this.wifi().driver().is_sta_connected().map(|s| !s),
+            Some(timeout),
+        );
 
         match wait_result.await {
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
@@ -46,7 +43,7 @@ pub async fn connect(
             Ok(_) => {
                 log::info!("WiFi connected.");
 
-                wifi.lock().await.wait_netif_up().await?;
+                wifi.wait_netif_up().await?;
                 log::info!("WiFi netif up.");
 
                 return Ok(true);
