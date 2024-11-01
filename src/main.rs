@@ -9,7 +9,6 @@ mod wifi;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use config::user_nvs;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex as RawMutex, mutex::Mutex};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
@@ -28,41 +27,36 @@ fn main() -> anyhow::Result<()> {
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    let peripherals = Peripherals::take().unwrap();
+    // One-time initialization of the global config.
+    config::init_config()?;
 
+    let peripherals = Peripherals::take()?;
     let sysloop = EspSystemEventLoop::take()?;
     let timer_servie = EspTaskTimerService::new()?;
-
     let nvs_part = EspDefaultNvsPartition::take()?;
-    let mut nvs = user_nvs(nvs_part.clone())?;
-
-    let config = config::Config::read(&mut nvs)?;
-
-    // So we can access the default NVS partition later.
-    drop(nvs);
 
     let action: Arc<Mutex<RawMutex, dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
-        config.io.pin(peripherals.pins)?,
-        config.io.duration(),
+        config::io_pin(peripherals.pins)?,
+        config::io_duration()?,
     )?));
 
     let wifi = Arc::new(Mutex::new(block_on(wifi::init(
-        &config,
         peripherals.modem,
         nvs_part.clone(),
         sysloop.clone(),
         timer_servie,
     ))?));
 
-    let connected: Pin<Box<dyn Future<Output = _>>> = if config.wifi.is_configured() {
-        Box::pin(wifi::connect(
-            Arc::clone(&wifi),
-            config.wifi.timeout(),
-            config.wifi.max_attempts,
-        ))
-    } else {
-        Box::pin(std::future::ready(Ok(false)))
-    };
+    let connected: Pin<Box<dyn Future<Output = _>>> =
+        if config::wifi_is_configured(nvs_part.clone())? {
+            Box::pin(wifi::connect(
+                Arc::clone(&wifi),
+                config::wifi_timeout()?,
+                config::wifi_max_attempts()?,
+            ))
+        } else {
+            Box::pin(std::future::ready(Ok(false)))
+        };
 
     // Don't drop this.
     let _server = http::serve(Arc::clone(&wifi), nvs_part.clone(), Arc::clone(&action))?;
@@ -71,7 +65,7 @@ fn main() -> anyhow::Result<()> {
 
     // Don't drop this.
     let _subscription = if block_on(connected)? {
-        wifi::configure_mdns(&mut mdns, &config.wifi.hostname)?;
+        wifi::configure_mdns(&mut mdns, &config::wifi_hostname()?)?;
         Some(wifi::reset_on_disconnect(&sysloop)?)
     } else {
         None

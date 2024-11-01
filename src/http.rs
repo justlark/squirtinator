@@ -8,15 +8,12 @@ use esp_idf_svc::{
         Method,
     },
     io::Write,
-    nvs::{EspNvs, EspNvsPartition, NvsPartitionId},
+    nvs::{EspNvsPartition, NvsPartitionId},
     wifi::{AsyncWifi, EspWifi},
 };
 use serde::Deserialize;
 
-use crate::{
-    config::{user_nvs, Config, ValueStore},
-    gpio::Action,
-};
+use crate::{config, gpio::Action};
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const HTML_SETTINGS: &[u8] = include_bytes!("../client/settings.html");
@@ -63,11 +60,11 @@ struct WifiSettingsFormBody {
 }
 
 impl WifiSettingsFormBody {
-    fn save<P: NvsPartitionId>(&self, nvs: &mut EspNvs<P>) -> anyhow::Result<()> {
-        nvs.set_value("wifi.ssid", self.ssid.clone())?;
+    fn save<P: NvsPartitionId>(&self, nvs_part: EspNvsPartition<P>) -> anyhow::Result<()> {
+        config::set_wifi_ssid(nvs_part.clone(), &self.ssid)?;
 
         if !self.password.is_empty() {
-            nvs.set_value("wifi.password", self.password.clone())?;
+            config::set_wifi_password(nvs_part, &self.password)?;
         }
 
         log::info!("WiFi settings saved.");
@@ -84,10 +81,8 @@ pub fn serve<P>(
 where
     P: NvsPartitionId + Send + Sync + 'static,
 {
-    let config = Config::read(&mut user_nvs(nvs_part.clone())?)?;
-
     let server_config = Configuration {
-        http_port: config.http.port,
+        http_port: config::http_port()?,
         stack_size: HTTP_SERVER_STACK_SIZE,
         ..Default::default()
     };
@@ -153,8 +148,6 @@ where
         },
     )?;
 
-    let hostname = config.wifi.hostname.clone();
-
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
         let wifi = block_on(wifi.lock());
 
@@ -176,7 +169,8 @@ where
                       http://{}
                     </p>
                     ",
-                    &hostname, addr,
+                    &config::wifi_hostname()?,
+                    addr,
                 ),
                 None => String::from(
                     "
@@ -198,8 +192,7 @@ where
             let req_body = read_body(&mut req)?;
             let form_body = serde_urlencoded::from_bytes::<WifiSettingsFormBody>(&req_body)?;
 
-            let mut user_nvs = user_nvs(user_nvs_part.clone())?;
-            form_body.save(&mut user_nvs)?;
+            form_body.save(user_nvs_part.clone())?;
 
             html_resp(
                 req,
@@ -217,13 +210,10 @@ where
         "/api/settings/wifi/ssid",
         Method::Get,
         move |req| -> anyhow::Result<()> {
-            let mut nvs = user_nvs(user_nvs_part.clone())?;
-            let config = Config::read(&mut nvs)?;
-
             // There's no need to include the HTMX `hx-*` attributes when swapping this element in
             // for the one currently on the page, because this API endpoint will only be triggered
-            // on first page load anyways.
-            if let Some(ssid) = config.wifi.ssid {
+            // on first page load.
+            if let Some(ssid) = config::wifi_ssid(user_nvs_part.clone())? {
                 html_resp(
                     req,
                     200,

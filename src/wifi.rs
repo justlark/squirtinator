@@ -13,7 +13,7 @@ use esp_idf_svc::{
     wifi::{AsyncWifi, EspWifi, WifiDriver, WifiEvent},
 };
 
-use crate::config::Config;
+use crate::config;
 
 pub async fn connect(
     wifi: Arc<Mutex<RawMutex, AsyncWifi<EspWifi<'static>>>>,
@@ -68,26 +68,25 @@ pub fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> 
 }
 
 pub async fn init(
-    config: &Config,
     modem: impl Peripheral<P = Modem> + 'static,
     nvs_part: EspDefaultNvsPartition,
     sysloop: EspSystemEventLoop,
     timer_service: EspTaskTimerService,
 ) -> anyhow::Result<AsyncWifi<EspWifi<'static>>> {
-    if config.access_point.ssid.is_empty() {
+    if config::access_point_ssid()?.is_empty() {
         return Err(anyhow!("Access point WiFi SSID cannot be empty."));
     }
 
-    let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part))?;
+    let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part.clone()))?;
     let esp_wifi = EspWifi::wrap_all(
         wifi_driver,
-        EspNetif::new_with_conf(&config.wifi.netif_config()?)?,
-        EspNetif::new_with_conf(&config.access_point.netif_config()?)?,
+        EspNetif::new_with_conf(&config::wifi_netif_config()?)?,
+        EspNetif::new_with_conf(&config::access_point_netif_config()?)?,
     )?;
 
     let mut wifi = AsyncWifi::wrap(esp_wifi, sysloop, timer_service)?;
 
-    wifi.set_configuration(&config.wifi_config()?)?;
+    wifi.set_configuration(&config::wifi_config(nvs_part.clone())?)?;
 
     log::info!("Starting WiFi...");
 
