@@ -7,8 +7,8 @@ cargo +args:
 
 # flash the firmware and monitor the logs
 dev: (cargo "build" "--release")
-  espflash flash --monitor {{bin}}
+  espflash flash --partition-table ./partition-table.csv --erase-data-parts nvs --monitor {{bin}}
 
 # flash the firmware
 flash: (cargo "build" "--release")
-  espflash flash {{bin}}
+  espflash flash --partition-table ./partition-table.csv --erase-data-parts nvs {{bin}}

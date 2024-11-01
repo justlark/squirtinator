@@ -5,6 +5,7 @@ use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
 use esp_idf_svc::ipv4::{self, Ipv4Addr};
 use esp_idf_svc::netif::NetifConfiguration;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsPartitionId};
+use esp_idf_svc::sys::ESP_ERR_NVS_INVALID_LENGTH;
 use esp_idf_svc::wifi;
 use serde::Deserialize;
 
@@ -14,6 +15,10 @@ const AUTH_METHOD: wifi::AuthMethod = wifi::AuthMethod::WPA2Personal;
 const NVS_USER_NAMESPACE: &str = "user";
 
 // We store persistent user preferences in their own NVS namespace.
+//
+// If you check the Justfile, you'll see that we erase the NVS partition before flashing the
+// firmware. This is so that defaults in the config.toml file take precedence when the device is
+// first flashed, but can be overwritten by the user via the UI.
 pub fn user_nvs<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<EspNvs<P>> {
     Ok(EspNvs::new(nvs_part, NVS_USER_NAMESPACE, true)?)
 }
@@ -232,8 +237,6 @@ impl Config {
 
 trait ValueStore<T> {
     fn get_value(&mut self, key: &str) -> anyhow::Result<Option<T>>;
-
-    fn set_value(&mut self, key: &str, value: T) -> anyhow::Result<()>;
 }
 
 impl<P> ValueStore<String> for EspNvs<P>
@@ -241,13 +244,23 @@ where
     P: NvsPartitionId,
 {
     fn get_value(&mut self, key: &str) -> anyhow::Result<Option<String>> {
-        let mut buf = Vec::new();
-        Ok(self.get_str(key, &mut buf)?.map(ToOwned::to_owned))
-    }
+        // The NVS API will panic if the buffer isn't large enough to store the string. Let's set a
+        // reasonable upper bound for the kinds of data we'll be storing.
+        const BUF_SIZE: usize = 256;
+        let mut buf = vec![0; BUF_SIZE];
 
-    fn set_value(&mut self, key: &str, value: String) -> anyhow::Result<()> {
-        self.set_str(key, &value)?;
-        Ok(())
+        match self.get_str(key, &mut buf) {
+            Ok(value) => Ok(value.map(ToOwned::to_owned)),
+            Err(err) if err.code() == ESP_ERR_NVS_INVALID_LENGTH => {
+                log::error!(
+                    "Attempted to read a string value larger than {} bytes from NVS.",
+                    BUF_SIZE
+                );
+
+                Err(err.into())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 }
 
