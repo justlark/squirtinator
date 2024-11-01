@@ -9,10 +9,10 @@
 # Change this if you plan to have multiple Squirtinators on the same network.
 hostname = "squirtinator"
 # The timeout between connection attempts, in seconds.
-timeout = 10
+timeout = 15
 # The number of attempts the toy will make the connect to the local network
 # before falling back to only running in access point mode.
-max_attempts = 3
+max_attempts = 4
 # Configuring an SSID will prompt the toy to try and connect to the local
 # network.
 #ssid = "MyNetwork"
