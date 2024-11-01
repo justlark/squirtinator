@@ -1,118 +1,39 @@
-use std::{
-    any::Any,
-    net::Ipv4Addr,
-    sync::{mpsc, Arc, Mutex},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::anyhow;
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex as RawMutex, mutex::Mutex};
 use esp_idf_svc::{
     eventloop::{self, EspSubscription, EspSystemEventLoop},
-    hal,
+    hal::{self, modem::Modem, peripheral::Peripheral},
     mdns::EspMdns,
     netif::EspNetif,
     nvs::EspDefaultNvsPartition,
     sys::ESP_ERR_TIMEOUT,
-    wifi::{BlockingWifi, EspWifi, WifiDriver, WifiEvent},
+    timer::EspTaskTimerService,
+    wifi::{AsyncWifi, EspWifi, WifiDriver, WifiEvent},
 };
 
 use crate::config::Config;
 
-// This is a mechanism for sending requests to the WiFi driver and receiving responses. It allows
-// us to avoid having to pass around the WiFi driver. Instead, there's a dedicated thread that owns
-// the driver and processes requests over channels.
-pub trait Request {
-    type Response;
-
-    fn respond(&self, wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<Self::Response>;
-}
-
-// A request which gets the current IP address of the WiFi STA interface.
-#[derive(Debug)]
-pub struct IpAddrRequest;
-
-impl Request for IpAddrRequest {
-    type Response = Box<Option<Ipv4Addr>>;
-
-    fn respond(
-        &self,
-        wifi: &mut BlockingWifi<EspWifi<'static>>,
-    ) -> anyhow::Result<Box<Option<Ipv4Addr>>> {
-        Ok(Box::new(if wifi.wifi().driver().is_sta_connected()? {
-            Some(wifi.wifi().sta_netif().get_ip_info()?.ip)
-        } else {
-            None
-        }))
-    }
-}
-
-type RequestHandlerFn = Box<
-    dyn FnOnce(&mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<Box<dyn Any + Send>> + Send,
->;
-
-pub struct RequestHandler {
-    requests: mpsc::SyncSender<RequestHandlerFn>,
-    responses: mpsc::Receiver<anyhow::Result<Box<dyn Any + Send>>>,
-}
-
-impl RequestHandler {
-    pub fn new(mut wifi: BlockingWifi<EspWifi<'static>>) -> Self {
-        let (request_sender, request_receiver) = mpsc::sync_channel::<RequestHandlerFn>(0);
-        let (response_sender, response_receiver) = mpsc::sync_channel(1);
-
-        // We can safely detach this thread because it will end when the sending half of the
-        // channel is dropped, so there's no need to join it.
-        std::thread::spawn(move || {
-            while let Ok(request_fn) = request_receiver.recv() {
-                let response = request_fn(&mut wifi);
-                response_sender
-                    .send(response)
-                    .expect("WiFi request response channel closed.");
-            }
-        });
-
-        Self {
-            requests: request_sender,
-            responses: response_receiver,
-        }
-    }
-    pub fn request<T>(&mut self, request: T) -> anyhow::Result<T::Response>
-    where
-        T: Request + Send + 'static,
-        T::Response: Send,
-    {
-        self.requests
-            .send(Box::new(|wifi: &mut BlockingWifi<EspWifi<'static>>| {
-                let request = request;
-                let response = request.respond(wifi)?;
-                Ok(Box::new(response))
-            }))
-            .map_err(|_| anyhow!("WiFi request thread has exited."))?;
-
-        self.responses
-            .recv()
-            .map_err(|_| anyhow!("WiFi request thread has exited."))?
-            .and_then(|response| {
-                response
-                    .downcast::<T::Response>()
-                    .map_err(|_| anyhow!("WiFi request response type mismatch."))
-            })
-            .map(|response| *response)
-    }
-}
-
-fn connect_with_retry(
-    wifi: &mut BlockingWifi<EspWifi<'static>>,
+pub async fn connect(
+    wifi: Arc<Mutex<RawMutex, AsyncWifi<EspWifi<'static>>>>,
     timeout: Duration,
     max_attempts: u32,
 ) -> anyhow::Result<bool> {
     for i in 0..max_attempts {
-        wifi.wifi_mut().connect()?;
+        let wait_result = async {
+            let mut wifi = wifi.lock().await;
 
-        match wifi.wifi_wait_while(
-            || wifi.wifi().driver().is_sta_connected().map(|s| !s),
-            Some(timeout),
-        ) {
+            wifi.wifi_mut().connect()?;
+
+            wifi.wifi_wait(
+                |this| this.wifi().driver().is_sta_connected().map(|s| !s),
+                Some(timeout),
+            )
+            .await
+        };
+
+        match wait_result.await {
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
                 log::warn!(
                     "WiFi connection timed out (attempt {} of {}). Retrying...",
@@ -125,7 +46,7 @@ fn connect_with_retry(
             Ok(_) => {
                 log::info!("WiFi connected.");
 
-                wifi.wait_netif_up()?;
+                wifi.lock().await.wait_netif_up().await?;
                 log::info!("WiFi netif up.");
 
                 return Ok(true);
@@ -142,7 +63,6 @@ fn connect_with_retry(
 }
 
 // Set up mDNS for local network discovery.
-#[allow(unused_variables)]
 fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
     log::info!("Configuring mDNS with hostname: {}", hostname);
     mdns.set_hostname(hostname)?;
@@ -150,13 +70,14 @@ fn configure_mdns(mdns: &mut EspMdns, hostname: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn start(
+pub async fn init(
     config: &Config,
-    modem: impl hal::peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
-    mdns: Arc<Mutex<EspMdns>>,
+    modem: impl Peripheral<P = Modem> + 'static,
+    mdns: &mut EspMdns,
     nvs_part: EspDefaultNvsPartition,
     sysloop: EspSystemEventLoop,
-) -> anyhow::Result<RequestHandler> {
+    timer_service: EspTaskTimerService,
+) -> anyhow::Result<AsyncWifi<EspWifi<'static>>> {
     if config.access_point.ssid.is_empty() {
         return Err(anyhow!("Access point WiFi SSID cannot be empty."));
     }
@@ -168,21 +89,17 @@ pub fn start(
         EspNetif::new_with_conf(&config.access_point.netif_config()?)?,
     )?;
 
-    let mut wifi = BlockingWifi::wrap(esp_wifi, sysloop)?;
+    let mut wifi = AsyncWifi::wrap(esp_wifi, sysloop, timer_service)?;
 
     wifi.set_configuration(&config.wifi_config()?)?;
-    configure_mdns(&mut mdns.lock().unwrap(), &config.wifi.hostname)?;
+    configure_mdns(mdns, &config.wifi.hostname)?;
 
     log::info!("Starting WiFi...");
 
-    wifi.start()?;
+    wifi.start().await?;
     log::info!("WiFi started.");
 
-    if config.wifi.is_configured() {
-        connect_with_retry(&mut wifi, config.wifi.timeout(), config.wifi.max_attempts)?;
-    }
-
-    Ok(RequestHandler::new(wifi))
+    Ok(wifi)
 }
 
 pub fn reset_on_disconnect(

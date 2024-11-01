@@ -1,19 +1,21 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex as RawMutex, mutex::Mutex};
 use esp_idf_svc::{
+    hal::task::block_on,
     http::{
         server::{Configuration, EspHttpServer},
         Method,
     },
     io::Write,
     nvs::{EspNvs, EspNvsPartition, NvsPartitionId},
+    wifi::{AsyncWifi, EspWifi},
 };
 use serde::Deserialize;
 
 use crate::{
     config::{user_nvs, Config},
     gpio::Action,
-    wifi,
 };
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
@@ -25,9 +27,9 @@ const BUF_SIZE: usize = 1024;
 
 pub fn serve<P>(
     config: &Config,
-    wifi: Arc<Mutex<wifi::RequestHandler>>,
+    wifi: Arc<Mutex<RawMutex, AsyncWifi<EspWifi<'static>>>>,
     nvs_part: EspNvsPartition<P>,
-    action: Arc<Mutex<dyn Action>>,
+    action: Arc<Mutex<RawMutex, dyn Action>>,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
@@ -90,7 +92,7 @@ where
         "/api/activate",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            action.lock().unwrap().exec()?;
+            block_on(action.lock()).exec()?;
             req.into_ok_response()?;
             Ok(())
         },
@@ -100,14 +102,16 @@ where
 
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
         let mut resp = req.into_response(200, None, &[("Content-Type", "text/html")])?;
-        let addr = wifi.lock().unwrap().request(wifi::IpAddrRequest)?;
-        // let addr = if wifi.driver().is_sta_connected()? {
-        //     Some(wifi.sta_netif().get_ip_info()?.ip)
-        // } else {
-        //     None
-        // };
 
-        let body = match *addr {
+        let wifi = block_on(wifi.lock());
+
+        let addr = if wifi.wifi().driver().is_sta_connected()? {
+            Some(wifi.wifi().sta_netif().get_ip_info()?.ip)
+        } else {
+            None
+        };
+
+        let body = match addr {
             Some(addr) => format!(
                 "
                 <p>Your Squirtinator is connected to WiFi:</p>
