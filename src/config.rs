@@ -241,8 +241,10 @@ impl Config {
     }
 }
 
-trait ValueStore<T> {
+pub trait ValueStore<T> {
     fn get_value(&mut self, key: &str) -> anyhow::Result<Option<T>>;
+
+    fn set_value(&mut self, key: &str, value: T) -> anyhow::Result<()>;
 }
 
 impl<P> ValueStore<String> for EspNvs<P>
@@ -267,6 +269,11 @@ where
             }
             Err(err) => Err(err.into()),
         }
+    }
+
+    fn set_value(&mut self, key: &str, value: String) -> anyhow::Result<()> {
+        self.set_str(key, &value)?;
+        Ok(())
     }
 }
 

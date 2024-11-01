@@ -15,11 +15,22 @@
         id="wifi-form"
         hx-put="/api/settings/wifi"
         hx-target="#wifi-form-confirmation"
+        hx-confirm="Are you sure you want to change the WiFi settings?"
         aria-labelledby="wifi-form-heading"
       >
         <h2 id="wifi-form-heading">WiFi</h2>
         <label for="ssid-input">Name (SSID)</label>
-        <input id="ssid-input" name="ssid" type="text" required />
+        <input
+          id="ssid-input"
+          name="ssid"
+          type="text"
+          required
+          hx-get="/api/settings/wifi/ssid"
+          hx-target="#ssid-input"
+          hx-trigger="load"
+          hx-swap="outerHTML"
+          hx-confirm="unset"
+        />
         <label for="password-input">Password</label>
         <input id="password-input" name="password" type="password" />
         <button type="submit" form="wifi-form">SAVE</button>

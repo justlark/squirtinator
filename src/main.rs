@@ -65,12 +65,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // Don't drop this.
-    let _server = http::serve(
-        &config,
-        Arc::clone(&wifi),
-        nvs_part.clone(),
-        Arc::clone(&action),
-    )?;
+    let _server = http::serve(Arc::clone(&wifi), nvs_part.clone(), Arc::clone(&action))?;
 
     let mut mdns = EspMdns::take()?;
 
