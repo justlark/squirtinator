@@ -37,12 +37,17 @@ pub struct WifiConfig {
     pub hostname: String,
     #[serde(rename = "static")]
     pub static_ip: Option<StaticWifiConfig>,
+    pub timeout: u32,
     pub max_attempts: u32,
 }
 
 impl WifiConfig {
     pub fn is_configured(&self) -> bool {
         self.ssid.is_some() && !self.ssid.as_ref().unwrap().is_empty()
+    }
+
+    pub fn timeout(&self) -> Duration {
+        Duration::from_secs(self.timeout.into())
     }
 
     pub fn wifi_config(&self) -> anyhow::Result<Option<wifi::ClientConfiguration>> {
@@ -279,6 +284,7 @@ impl Config {
                 password: nvs.get_value("wifi.password")?.or(default.wifi.password),
                 hostname: default.wifi.hostname,
                 static_ip: default.wifi.static_ip,
+                timeout: default.wifi.timeout,
                 max_attempts: default.wifi.max_attempts,
             },
             access_point: default.access_point,

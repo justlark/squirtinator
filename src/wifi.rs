@@ -2,6 +2,7 @@ use std::{
     any::Any,
     net::Ipv4Addr,
     sync::{mpsc, Arc, Mutex},
+    time::Duration,
 };
 
 use anyhow::anyhow;
@@ -102,10 +103,16 @@ impl RequestHandler {
 
 fn connect_with_retry(
     wifi: &mut BlockingWifi<EspWifi<'static>>,
+    timeout: Duration,
     max_attempts: u32,
 ) -> anyhow::Result<bool> {
     for i in 0..max_attempts {
-        match wifi.connect() {
+        wifi.wifi_mut().connect()?;
+
+        match wifi.wifi_wait_while(
+            || wifi.wifi().driver().is_sta_connected().map(|s| !s),
+            Some(timeout),
+        ) {
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
                 log::warn!(
                     "WiFi connection timed out (attempt {} of {}). Retrying...",
@@ -172,7 +179,7 @@ pub fn start(
     log::info!("WiFi started.");
 
     if config.wifi.is_configured() {
-        connect_with_retry(&mut wifi, config.wifi.max_attempts)?;
+        connect_with_retry(&mut wifi, config.wifi.timeout(), config.wifi.max_attempts)?;
     }
 
     Ok(RequestHandler::new(wifi))
