@@ -11,21 +11,14 @@ use std::{future::Future, pin::Pin};
 
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
-    hal::{prelude::Peripherals, task::block_on},
+    hal::{self, prelude::Peripherals, task::block_on},
     mdns::EspMdns,
     nvs::EspDefaultNvsPartition,
     timer::EspTaskTimerService,
 };
 use gpio::GpioAction;
 
-fn main() -> anyhow::Result<()> {
-    // It is necessary to call this function once. Otherwise some patches to the runtime
-    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
-    esp_idf_svc::sys::link_patches();
-
-    // Bind the log crate to the ESP Logging facilities
-    esp_idf_svc::log::EspLogger::initialize_default();
-
+fn run() -> anyhow::Result<()> {
     // One-time initialization of the global config.
     config::init_config()?;
 
@@ -69,5 +62,19 @@ fn main() -> anyhow::Result<()> {
     // HTTP server) must not be dropped for the lifetime of the program.
     loop {
         std::thread::park();
+    }
+}
+
+fn main() {
+    // It is necessary to call this function once. Otherwise some patches to the runtime
+    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
+    esp_idf_svc::sys::link_patches();
+
+    // Bind the log crate to the ESP Logging facilities
+    esp_idf_svc::log::EspLogger::initialize_default();
+
+    if let Err(err) = run() {
+        log::error!("{:?}", err);
+        hal::reset::restart();
     }
 }
