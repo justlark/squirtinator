@@ -36,12 +36,20 @@ impl GpioAction {
                     pin_num,
                     duration.as_millis()
                 );
-                driver.set_level(Level::High).unwrap();
+
+                if let Err(err) = driver.set_level(Level::High) {
+                    log::error!("Failed to set pin {} to high: {:?}", pin_num, err);
+                    continue;
+                }
 
                 std::thread::sleep(duration);
 
                 log::info!("Setting pin {} to low.", pin_num);
-                driver.set_level(Level::Low).unwrap();
+
+                if let Err(err) = driver.set_level(Level::Low) {
+                    log::error!("Failed to set pin {} to low: {:?}", pin_num, err);
+                    continue;
+                }
             }
         });
 
