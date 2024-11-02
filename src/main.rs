@@ -1,18 +1,20 @@
 mod config;
-mod gpio;
 mod http;
 mod wifi;
 
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
-    hal::{self, prelude::Peripherals, task::block_on},
+    hal::{
+        self, gpio,
+        prelude::Peripherals,
+        task::{block_on, queue::Queue},
+    },
     mdns::EspMdns,
     nvs::EspDefaultNvsPartition,
     timer::EspTaskTimerService,
 };
-use gpio::GpioAction;
 
 fn run() -> anyhow::Result<()> {
     // One-time initialization of the global config.
@@ -41,23 +43,41 @@ fn run() -> anyhow::Result<()> {
             Box::pin(std::future::ready(Ok(())))
         };
 
-    let action = GpioAction::new(config::io_pin(peripherals.pins)?, config::io_duration()?)?;
-    let _server = http::serve(nvs_part.clone(), action)?;
+    // We use a queue of size 1 to pass messages from the HTTP server to trigger the GPIO pin. On
+    // the sending side, we don't block if the queue is full. This has the effect that if the user
+    // presses the button to trigger the toy while it's already doing something, it will be a no-op
+    // rather then queue up multiple pulses over the GPIO pin. We want to wait until the toy is
+    // done doing its thing before we allow it to be activated again.
+    let pin_trigger_queue = Arc::new(Queue::new(1));
+
+    // Don't drop this.
+    let _server = http::serve(nvs_part.clone(), Arc::clone(&pin_trigger_queue))?;
 
     block_on(connection)?;
 
     let mut mdns = EspMdns::take()?;
     wifi::configure_mdns(&mut mdns, &config::wifi_hostname()?)?;
 
+    // Don't drop this.
     let _subscription = wifi::handle_events(&sysloop)?;
 
-    // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
-    // here because `std::thread::park()` does not guarantee that threads will stay parked forever.
-    //
-    // We don't want to return because many of the resources we've taken ownership of (e.g. the
-    // HTTP server) must not be dropped for the lifetime of the program.
+    let mut pin_driver = gpio::PinDriver::output(config::io_pin(peripherals.pins)?)?;
+
     loop {
-        std::thread::park();
+        let duration = config::io_duration()?;
+        pin_trigger_queue.recv_front(hal::delay::BLOCK);
+
+        log::info!(
+            "Setting GPIO pin {} to high for {}ms.",
+            pin_driver.pin(),
+            duration.as_millis(),
+        );
+        pin_driver.set_level(gpio::Level::High)?;
+
+        std::thread::sleep(duration);
+
+        log::info!("Setting GPIO pin {} to low.", pin_driver.pin(),);
+        pin_driver.set_level(gpio::Level::Low)?;
     }
 }
 

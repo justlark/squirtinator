@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use esp_idf_svc::{
+    hal::task::queue::Queue,
     http::{
         server::{Configuration, Connection, EspHttpServer, Request},
         Method,
@@ -8,7 +11,7 @@ use esp_idf_svc::{
 };
 use serde::Deserialize;
 
-use crate::{config, gpio::Action};
+use crate::config;
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const HTML_SETTINGS: &[u8] = include_bytes!("../client/settings.html");
@@ -80,13 +83,12 @@ impl WifiSettingsFormBody {
     }
 }
 
-pub fn serve<T, P>(
+pub fn serve<P>(
     nvs_part: EspNvsPartition<P>,
-    action: T,
+    pin_trigger_queue: Arc<Queue<()>>,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
-    T: Action + Clone + Send + 'static,
 {
     let server_config = Configuration {
         http_port: config::http_port()?,
@@ -149,8 +151,13 @@ where
         "/api/activate",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            action.clone().exec()?;
+            // Don't block if the queue is full.
+            if pin_trigger_queue.send_back((), 0).is_err() {
+                log::info!("GPIO output pin is already active. Skipping this pulse.");
+            }
+
             req.into_ok_response()?;
+
             Ok(())
         },
     )?;
