@@ -54,8 +54,6 @@ struct WifiConfig {
     hostname: String,
     #[serde(rename = "static")]
     static_ip: Option<StaticWifiConfig>,
-    timeout: u32,
-    max_attempts: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -209,14 +207,6 @@ pub fn wifi_static_ip_mask() -> anyhow::Result<Option<ipv4::Mask>> {
             .as_ref()
             .map(|config| ipv4::Mask(config.mask))
     })
-}
-
-pub fn wifi_timeout() -> anyhow::Result<Duration> {
-    default_config().map(|config| Duration::from_secs(config.wifi.timeout.into()))
-}
-
-pub fn wifi_max_attempts() -> anyhow::Result<u32> {
-    default_config().map(|config| config.wifi.max_attempts)
 }
 
 pub fn access_point_ssid() -> anyhow::Result<String> {

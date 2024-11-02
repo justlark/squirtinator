@@ -14,13 +14,6 @@
 # Change this if you plan to have multiple Squirtinators on the same network.
 hostname = "squirtinator"
 
-# The timeout between connection attempts, in seconds.
-timeout = 15
-
-# The number of attempts the toy will make to connect to the local network
-# before falling back to only running in access point mode.
-max_attempts = 4
-
   # You can optionally assign the toy a static IP address on the local network.
   #[wifi.static]
   #addr = "192.168.0.69"

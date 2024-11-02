@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
 
     let peripherals = Peripherals::take()?;
     let sysloop = EspSystemEventLoop::take()?;
-    let timer_servie = EspTaskTimerService::new()?;
+    let timer_service = EspTaskTimerService::new()?;
     let nvs_part = EspDefaultNvsPartition::take()?;
 
     let action: Arc<Mutex<RawMutex, dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
@@ -44,32 +44,30 @@ fn main() -> anyhow::Result<()> {
         peripherals.modem,
         nvs_part.clone(),
         sysloop.clone(),
-        timer_servie,
+        timer_service.clone(),
     ))?));
 
-    let connected: Pin<Box<dyn Future<Output = _>>> =
+    // Don't block waiting for the connection to be established just yet. We want to bring up the
+    // HTTP server in the meantime so that users can potentially connect to the device in AP mode
+    // while waiting for it to connect to the local network in STA mode (or in case it's unable
+    // to).
+    let connection: Pin<Box<dyn Future<Output = _>>> =
         if config::wifi_is_configured(nvs_part.clone())? {
-            Box::pin(wifi::connect(
-                Arc::clone(&wifi),
-                config::wifi_timeout()?,
-                config::wifi_max_attempts()?,
-            ))
+            Box::pin(wifi::connect(Arc::clone(&wifi), timer_service))
         } else {
-            Box::pin(std::future::ready(Ok(false)))
+            Box::pin(std::future::ready(Ok(())))
         };
 
     // Don't drop this.
     let _server = http::serve(Arc::clone(&wifi), nvs_part.clone(), Arc::clone(&action))?;
 
+    block_on(connection)?;
+
     let mut mdns = EspMdns::take()?;
+    wifi::configure_mdns(&mut mdns, &config::wifi_hostname()?)?;
 
     // Don't drop this.
-    let _subscription = if block_on(connected)? {
-        wifi::configure_mdns(&mut mdns, &config::wifi_hostname()?)?;
-        Some(wifi::reset_on_disconnect(&sysloop)?)
-    } else {
-        None
-    };
+    let _subscription = wifi::reset_on_disconnect(&sysloop)?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
     // here because `std::thread::park()` does not guarantee that threads will stay parked forever.
