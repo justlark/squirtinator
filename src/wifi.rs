@@ -6,7 +6,7 @@ use esp_idf_svc::{
     hal::{self, modem::Modem, peripheral::Peripheral},
     mdns::EspMdns,
     netif::EspNetif,
-    nvs::EspDefaultNvsPartition,
+    nvs::{EspDefaultNvsPartition, EspNvsPartition, NvsPartitionId},
     sys::ESP_ERR_TIMEOUT,
     timer::EspTaskTimerService,
     wifi::{AsyncWifi, EspWifi, WifiDriver, WifiEvent},
@@ -61,8 +61,9 @@ impl ConnectStrategy {
     }
 }
 
-pub async fn connect(
+pub async fn connect<P: NvsPartitionId>(
     wifi: &mut AsyncWifi<EspWifi<'static>>,
+    nvs_part: EspNvsPartition<P>,
     timer_service: EspTaskTimerService,
 ) -> anyhow::Result<()> {
     let mut strategy = ConnectStrategy::default();
@@ -103,6 +104,9 @@ pub async fn connect(
                 wifi.wait_netif_up().await?;
                 log::info!("WiFi netif up.");
 
+                let addr = wifi.wifi().sta_netif().get_ip_info()?.ip;
+                config::set_wifi_ip_addr(nvs_part, Some(addr))?;
+
                 return Ok(());
             }
         }
@@ -128,6 +132,8 @@ pub async fn init(
         return Err(anyhow!("Access point WiFi SSID cannot be empty."));
     }
 
+    config::set_wifi_ip_addr(nvs_part.clone(), None)?;
+
     let wifi_driver: WifiDriver = WifiDriver::new(modem, sysloop.clone(), Some(nvs_part.clone()))?;
     let esp_wifi = EspWifi::wrap_all(
         wifi_driver,
@@ -147,7 +153,7 @@ pub async fn init(
     Ok(wifi)
 }
 
-pub fn reset_on_disconnect(
+pub fn handle_events(
     eventloop: &EspSystemEventLoop,
 ) -> anyhow::Result<EspSubscription<'static, eventloop::System>> {
     Ok(eventloop.subscribe::<WifiEvent, _>(move |event| {

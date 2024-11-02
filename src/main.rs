@@ -36,7 +36,7 @@ fn run() -> anyhow::Result<()> {
     // to).
     let connection: Pin<Box<dyn Future<Output = _>>> =
         if config::wifi_is_configured(nvs_part.clone())? {
-            Box::pin(wifi::connect(&mut wifi, timer_service))
+            Box::pin(wifi::connect(&mut wifi, nvs_part.clone(), timer_service))
         } else {
             Box::pin(std::future::ready(Ok(())))
         };
@@ -49,7 +49,7 @@ fn run() -> anyhow::Result<()> {
     let mut mdns = EspMdns::take()?;
     wifi::configure_mdns(&mut mdns, &config::wifi_hostname()?)?;
 
-    let _subscription = wifi::reset_on_disconnect(&sysloop)?;
+    let _subscription = wifi::handle_events(&sysloop)?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
     // here because `std::thread::park()` does not guarantee that threads will stay parked forever.

@@ -125,6 +125,34 @@ pub fn wifi_is_configured<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> an
     Ok(ssid.is_some() && !ssid.as_ref().unwrap().is_empty())
 }
 
+// This isn't configuration per se; this is where we store the current IP address on the local
+// network so that we can display it in the UI.
+pub fn wifi_ip_addr<P: NvsPartitionId>(
+    nvs_part: EspNvsPartition<P>,
+) -> anyhow::Result<Option<Ipv4Addr>> {
+    let mut nvs = user_nvs(nvs_part)?;
+
+    Ok(nvs
+        .get_value("wifi.ip_addr")?
+        .map(|addr| addr.parse())
+        .transpose()?)
+}
+
+pub fn set_wifi_ip_addr<P: NvsPartitionId>(
+    nvs_part: EspNvsPartition<P>,
+    ip_addr: Option<Ipv4Addr>,
+) -> anyhow::Result<()> {
+    let mut nvs = user_nvs(nvs_part)?;
+
+    if let Some(ip_addr) = ip_addr {
+        nvs.set_str("wifi.ip_addr", &ip_addr.to_string())?;
+    } else {
+        nvs.remove("wifi.ip_addr")?;
+    };
+
+    Ok(())
+}
+
 pub fn wifi_ssid<P: NvsPartitionId>(
     nvs_part: EspNvsPartition<P>,
 ) -> anyhow::Result<Option<String>> {

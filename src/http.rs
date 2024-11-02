@@ -157,6 +157,37 @@ where
 
     let user_nvs_part = nvs_part.clone();
 
+    server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
+        let addr = config::wifi_ip_addr(user_nvs_part.clone())?;
+
+        html_resp(
+            req,
+            200,
+            &match addr {
+                Some(addr) => format!(
+                    "
+                    <p>Your Squirtinator is connected to WiFi.</p>
+                    <p>
+                      http://{}.local<br />
+                      http://{}
+                    </p>
+                    ",
+                    &config::wifi_hostname()?,
+                    addr,
+                ),
+                None => String::from(
+                    "
+                    <p>Your Squirtinator is not connected to WiFi.</p>
+                    ",
+                ),
+            },
+        )?;
+
+        Ok(())
+    })?;
+
+    let user_nvs_part = nvs_part.clone();
+
     server.fn_handler(
         "/api/settings/wifi",
         Method::Put,
