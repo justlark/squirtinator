@@ -1,7 +1,3 @@
-// Necessary for conditional compilation of remote components.
-// https://github.com/esp-rs/esp-idf-sys/blob/master/BUILD-OPTIONS.md#remote-components-idf-component-registry
-#![allow(unexpected_cfgs)]
-
 mod config;
 mod gpio;
 mod http;

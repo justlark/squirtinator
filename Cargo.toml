@@ -45,3 +45,7 @@ serde_urlencoded = "0.7.1"
 
 [build-dependencies]
 embuild = "0.32.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
