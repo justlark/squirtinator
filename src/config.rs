@@ -11,7 +11,6 @@ use esp_idf_svc::wifi;
 use serde::Deserialize;
 
 const TOML_CONFIG: &str = include_str!("../config.toml");
-const AUTH_METHOD: wifi::AuthMethod = wifi::AuthMethod::WPA2Personal;
 
 const NVS_USER_NAMESPACE: &str = "user";
 
@@ -308,7 +307,7 @@ pub fn wifi_client_config<P: NvsPartitionId>(
                 .try_into()
                 .map_err(|_| anyhow!("WiFi SSID is too long: {}", ssid))?,
             auth_method: match &password {
-                Some(password) if !password.is_empty() => AUTH_METHOD,
+                Some(password) if !password.is_empty() => wifi::AuthMethod::default(),
                 _ => wifi::AuthMethod::None,
             },
             password: password
@@ -377,7 +376,7 @@ pub fn access_point_config() -> anyhow::Result<wifi::AccessPointConfiguration> {
             .map_err(|_| anyhow!("WiFi SSID is too long: {}", ssid))?,
         ssid_hidden: access_point_hidden()?,
         auth_method: match &password {
-            Some(password) if !password.is_empty() => AUTH_METHOD,
+            Some(password) if !password.is_empty() => wifi::AuthMethod::default(),
             _ => wifi::AuthMethod::None,
         },
         password: password
