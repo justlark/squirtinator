@@ -1,15 +1,12 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex as RawMutex, mutex::Mutex};
 use esp_idf_svc::{
-    hal::task::block_on,
     http::{
         server::{Configuration, Connection, EspHttpServer, Request},
         Method,
     },
     io::Write,
     nvs::{EspNvsPartition, NvsPartitionId},
-    wifi::{AsyncWifi, EspWifi},
 };
 use serde::Deserialize;
 
@@ -86,9 +83,8 @@ impl WifiSettingsFormBody {
 }
 
 pub fn serve<P>(
-    wifi: Arc<Mutex<RawMutex, AsyncWifi<EspWifi<'static>>>>,
     nvs_part: EspNvsPartition<P>,
-    action: Arc<Mutex<RawMutex, dyn Action>>,
+    action: Arc<Mutex<dyn Action>>,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
@@ -154,46 +150,11 @@ where
         "/api/activate",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            block_on(action.lock()).exec()?;
+            action.lock().unwrap().exec()?;
             req.into_ok_response()?;
             Ok(())
         },
     )?;
-
-    server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
-        let wifi = block_on(wifi.lock());
-
-        let addr = if wifi.wifi().driver().is_sta_connected()? {
-            Some(wifi.wifi().sta_netif().get_ip_info()?.ip)
-        } else {
-            None
-        };
-
-        html_resp(
-            req,
-            200,
-            &match addr {
-                Some(addr) => format!(
-                    "
-                    <p>Your Squirtinator is connected to WiFi:</p>
-                    <p>
-                      http://{}.local<br />
-                      http://{}
-                    </p>
-                    ",
-                    &config::wifi_hostname()?,
-                    addr,
-                ),
-                None => String::from(
-                    "
-                    <p>Your Squirtinator is not connected to WiFi.</p>
-                    ",
-                ),
-            },
-        )?;
-
-        Ok(())
-    })?;
 
     let user_nvs_part = nvs_part.clone();
 

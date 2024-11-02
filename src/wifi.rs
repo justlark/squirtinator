@@ -1,7 +1,6 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use anyhow::anyhow;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex as RawMutex, mutex::Mutex};
 use esp_idf_svc::{
     eventloop::{self, EspSubscription, EspSystemEventLoop},
     hal::{self, modem::Modem, peripheral::Peripheral},
@@ -73,7 +72,7 @@ impl ConnectStrategy {
 
 // This function doesn't return until/unless the STA-mode connection succeeds.
 pub async fn connect(
-    wifi: Arc<Mutex<RawMutex, AsyncWifi<EspWifi<'static>>>>,
+    wifi: &mut AsyncWifi<EspWifi<'static>>,
     timer_service: EspTaskTimerService,
 ) -> anyhow::Result<()> {
     let mut strategy = ConnectStrategy::default();
@@ -100,7 +99,7 @@ pub async fn connect(
             }
         }
 
-        match wifi.lock().await.connect().await {
+        match wifi.connect().await {
             Err(err) if err.code() == ESP_ERR_TIMEOUT => {
                 log::warn!("WiFi connection attempt timed out. Retrying...",);
 
@@ -112,7 +111,7 @@ pub async fn connect(
             Ok(_) => {
                 log::info!("WiFi connected.");
 
-                wifi.lock().await.wait_netif_up().await?;
+                wifi.wait_netif_up().await?;
                 log::info!("WiFi netif up.");
 
                 return Ok(());

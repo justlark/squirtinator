@@ -7,9 +7,12 @@ mod gpio;
 mod http;
 mod wifi;
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex as RawMutex, mutex::Mutex};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::{prelude::Peripherals, task::block_on},
@@ -35,17 +38,17 @@ fn main() -> anyhow::Result<()> {
     let timer_service = EspTaskTimerService::new()?;
     let nvs_part = EspDefaultNvsPartition::take()?;
 
-    let action: Arc<Mutex<RawMutex, dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
+    let action: Arc<Mutex<dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
         config::io_pin(peripherals.pins)?,
         config::io_duration()?,
     )?));
 
-    let wifi = Arc::new(Mutex::new(block_on(wifi::init(
+    let mut wifi = block_on(wifi::init(
         peripherals.modem,
         nvs_part.clone(),
         sysloop.clone(),
         timer_service.clone(),
-    ))?));
+    ))?;
 
     // Don't block waiting for the connection to be established just yet. We want to bring up the
     // HTTP server in the meantime so that users can potentially connect to the device in AP mode
@@ -53,13 +56,13 @@ fn main() -> anyhow::Result<()> {
     // to).
     let connection: Pin<Box<dyn Future<Output = _>>> =
         if config::wifi_is_configured(nvs_part.clone())? {
-            Box::pin(wifi::connect(Arc::clone(&wifi), timer_service))
+            Box::pin(wifi::connect(&mut wifi, timer_service))
         } else {
             Box::pin(std::future::ready(Ok(())))
         };
 
     // Don't drop this.
-    let _server = http::serve(Arc::clone(&wifi), nvs_part.clone(), Arc::clone(&action))?;
+    let _server = http::serve(nvs_part.clone(), Arc::clone(&action))?;
 
     block_on(connection)?;
 
