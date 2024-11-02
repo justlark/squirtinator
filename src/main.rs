@@ -7,11 +7,7 @@ mod gpio;
 mod http;
 mod wifi;
 
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
-};
+use std::{future::Future, pin::Pin};
 
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
@@ -20,7 +16,7 @@ use esp_idf_svc::{
     nvs::EspDefaultNvsPartition,
     timer::EspTaskTimerService,
 };
-use gpio::{Action, GpioAction};
+use gpio::GpioAction;
 
 fn main() -> anyhow::Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -37,11 +33,6 @@ fn main() -> anyhow::Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
     let timer_service = EspTaskTimerService::new()?;
     let nvs_part = EspDefaultNvsPartition::take()?;
-
-    let action: Arc<Mutex<dyn Action>> = Arc::new(Mutex::new(GpioAction::new(
-        config::io_pin(peripherals.pins)?,
-        config::io_duration()?,
-    )?));
 
     let mut wifi = block_on(wifi::init(
         peripherals.modem,
@@ -61,19 +52,21 @@ fn main() -> anyhow::Result<()> {
             Box::pin(std::future::ready(Ok(())))
         };
 
-    // Don't drop this.
-    let _server = http::serve(nvs_part.clone(), Arc::clone(&action))?;
+    let action = GpioAction::new(config::io_pin(peripherals.pins)?, config::io_duration()?)?;
+    let _server = http::serve(nvs_part.clone(), action)?;
 
     block_on(connection)?;
 
     let mut mdns = EspMdns::take()?;
     wifi::configure_mdns(&mut mdns, &config::wifi_hostname()?)?;
 
-    // Don't drop this.
     let _subscription = wifi::reset_on_disconnect(&sysloop)?;
 
     // Park the main thread indefinitely. Other threads will continue executing. We must use a loop
     // here because `std::thread::park()` does not guarantee that threads will stay parked forever.
+    //
+    // We don't want to return because many of the resources we've taken ownership of (e.g. the
+    // HTTP server) must not be dropped for the lifetime of the program.
     loop {
         std::thread::park();
     }

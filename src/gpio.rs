@@ -7,11 +7,12 @@ use anyhow::bail;
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Level, Pin, PinDriver};
 
 // An action to take when the toy is activated.
-pub trait Action: Send {
+pub trait Action {
     fn exec(&mut self) -> anyhow::Result<()>;
 }
 
 // An `Action` which sends a "pulse" over a GPIO pin for a set duration in the background.
+#[derive(Debug, Clone)]
 pub struct GpioAction {
     channel: SyncSender<()>,
 }

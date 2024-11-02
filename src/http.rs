@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use esp_idf_svc::{
     http::{
         server::{Configuration, Connection, EspHttpServer, Request},
@@ -82,12 +80,13 @@ impl WifiSettingsFormBody {
     }
 }
 
-pub fn serve<P>(
+pub fn serve<T, P>(
     nvs_part: EspNvsPartition<P>,
-    action: Arc<Mutex<dyn Action>>,
+    action: T,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
+    T: Action + Clone + Send + 'static,
 {
     let server_config = Configuration {
         http_port: config::http_port()?,
@@ -150,7 +149,7 @@ where
         "/api/activate",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            action.lock().unwrap().exec()?;
+            action.clone().exec()?;
             req.into_ok_response()?;
             Ok(())
         },
