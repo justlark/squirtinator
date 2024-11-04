@@ -444,16 +444,6 @@ pub fn freq_lower_bound<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyh
         .unwrap_or(default.frequency.lower_bound))
 }
 
-pub fn set_freq_lower_bound<P: NvsPartitionId>(
-    nvs_part: EspNvsPartition<P>,
-    lower_bound: u32,
-) -> anyhow::Result<()> {
-    let nvs = user_nvs(nvs_part)?;
-    nvs.set_u32("freq.lower_bound", lower_bound)?;
-
-    Ok(())
-}
-
 pub fn freq_upper_bound<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
     let mut nvs = user_nvs(nvs_part)?;
     let default = default_config()?;
@@ -462,48 +452,38 @@ pub fn freq_upper_bound<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyh
         .unwrap_or(default.frequency.upper_bound))
 }
 
-pub fn set_freq_upper_bound<P: NvsPartitionId>(
-    nvs_part: EspNvsPartition<P>,
-    upper_bound: u32,
-) -> anyhow::Result<()> {
-    let nvs = user_nvs(nvs_part)?;
-    nvs.set_u32("freq.upper_bound", upper_bound)?;
-
-    Ok(())
-}
-
-pub fn freq_default_min<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
+pub fn freq_min<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
     let mut nvs = user_nvs(nvs_part)?;
     let default = default_config()?;
     Ok(nvs
-        .get_value("freq.default_min")?
+        .get_value("freq.min")?
         .unwrap_or(default.frequency.default_min))
 }
 
-pub fn set_freq_default_min<P: NvsPartitionId>(
+pub fn set_freq_min<P: NvsPartitionId>(
     nvs_part: EspNvsPartition<P>,
     default_min: u32,
 ) -> anyhow::Result<()> {
     let nvs = user_nvs(nvs_part)?;
-    nvs.set_u32("freq.default_min", default_min)?;
+    nvs.set_u32("freq.min", default_min)?;
 
     Ok(())
 }
 
-pub fn freq_default_max<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
+pub fn freq_max<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
     let mut nvs = user_nvs(nvs_part)?;
     let default = default_config()?;
     Ok(nvs
-        .get_value("freq.default_max")?
+        .get_value("freq.max")?
         .unwrap_or(default.frequency.default_max))
 }
 
-pub fn set_freq_default_max<P: NvsPartitionId>(
+pub fn set_freq_max<P: NvsPartitionId>(
     nvs_part: EspNvsPartition<P>,
     default_max: u32,
 ) -> anyhow::Result<()> {
     let nvs = user_nvs(nvs_part)?;
-    nvs.set_u32("freq.default_max", default_max)?;
+    nvs.set_u32("freq.max", default_max)?;
 
     Ok(())
 }

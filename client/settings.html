@@ -34,7 +34,6 @@
       <form
         id="freq-form"
         hx-put="/api/settings/freq"
-        hx-target="#freq-form-confirmation"
         hx-on:htmx:load="watchFreqSliders()"
         aria-labelledby="freq-form-heading"
       >
@@ -62,7 +61,6 @@
           <span id="max-freq-value" class="slider-value">0</span>
         </span>
         <button type="submit" form="freq-form">SAVE</button>
-        <div id="freq-form-confirmation"></div>
       </form>
 
       <hr />

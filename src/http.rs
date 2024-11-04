@@ -84,6 +84,23 @@ impl WifiSettingsFormBody {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct FreqSettingsFormBody {
+    min_freq: u32,
+    max_freq: u32,
+}
+
+impl FreqSettingsFormBody {
+    fn save<P: NvsPartitionId>(&self, nvs_part: EspNvsPartition<P>) -> anyhow::Result<()> {
+        config::set_freq_min(nvs_part.clone(), self.min_freq)?;
+        config::set_freq_max(nvs_part.clone(), self.max_freq)?;
+
+        log::info!("Frequency settings saved.");
+
+        Ok(())
+    }
+}
+
 pub fn serve<P>(
     nvs_part: EspNvsPartition<P>,
     pin_trigger_queue: Arc<Queue<()>>,
@@ -218,7 +235,7 @@ where
                 <input id="min-freq-input" type="range" name="min_freq" value="{default}" min="{min}" max="{max}"/>
                 <span id="min-freq-value" class="slider-value">{default}</span>
                 "#,
-                default=config::freq_default_min(user_nvs_part.clone())?,
+                default=config::freq_min(user_nvs_part.clone())?,
                 min=config::freq_lower_bound(user_nvs_part.clone())?,
                 max=config::freq_upper_bound(user_nvs_part.clone())?,
             ),
@@ -236,7 +253,7 @@ where
                 <input id="max-freq-input" type="range" name="max_freq" value="{default}" min="{min}" max="{max}"/>
                 <span id="max-freq-value" class="slider-value">{default}</span>
                 "#,
-                default=config::freq_default_max(user_nvs_part.clone())?,
+                default=config::freq_max(user_nvs_part.clone())?,
                 min=config::freq_lower_bound(user_nvs_part.clone())?,
                 max=config::freq_upper_bound(user_nvs_part.clone())?,
             ),
@@ -292,6 +309,23 @@ where
             } else {
                 req.into_response(204, None, &[])?;
             }
+
+            Ok(())
+        },
+    )?;
+
+    let user_nvs_part = nvs_part.clone();
+
+    server.fn_handler(
+        "/api/settings/freq",
+        Method::Put,
+        move |mut req| -> anyhow::Result<()> {
+            let req_body = read_body(&mut req)?;
+            let form_body = serde_urlencoded::from_bytes::<FreqSettingsFormBody>(&req_body)?;
+
+            form_body.save(user_nvs_part.clone())?;
+
+            req.into_status_response(204)?;
 
             Ok(())
         },
