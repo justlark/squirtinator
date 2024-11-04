@@ -74,7 +74,7 @@ body > h1 {
 
 button,
 .nav-button,
-input {
+input:not([type="range"]) {
   outline: var(--color-border) solid var(--border-width);
   outline-offset: 0;
   border: none;
@@ -181,6 +181,17 @@ input {
   color: var(--color-fg);
   background-color: transparent;
   padding: 0.5rem;
+}
+
+.slider {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 1rem;
+}
+
+.slider > input[type="range"] {
+  flex-grow: 1;
 }
 
 hr {

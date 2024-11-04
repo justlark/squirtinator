@@ -9,6 +9,7 @@
   </head>
   <body>
     <script src="/assets/htmx.min.js"></script>
+    <script src="/assets/index.js" defer></script>
     <h1 id="site-title">Squirtinator Settings</h1>
     <main id="settings" aria-labelledby="site-title">
       <a id="remote-link" class="nav-button nav-button-back" href="/">
@@ -27,6 +28,29 @@
         </svg>
         <span>REMOTE</span>
       </a>
+
+      <hr />
+
+      <form
+        id="toy-form"
+        hx-put="/api/settings/toy"
+        hx-target="#toy-form-confirmation"
+        aria-labelledby="toy-form-heading"
+      >
+        <h2 id="toy-form-heading">Parameters</h2>
+        <label for="min-freq-input">Min squirt frequency (seconds)</label>
+        <span class="slider" hx-get="/api/min-freq" hx-trigger="load">
+          <input id="min-freq-input" type="range" name="min-freq" disabled />
+          <span id="min-freq-value" class="slider-value"></span>
+        </span>
+        <label for="max-freq-input">Max squirt frequency (seconds)</label>
+        <span class="slider" hx-get="/api/max-freq" hx-trigger="load">
+          <input id="max-freq-input" type="range" name="max-freq" disabled />
+          <span id="max-freq-value" class="slider-value"></span>
+        </span>
+        <button type="submit" form="toy-form">SAVE</button>
+        <div id="toy-form-confirmation"></div>
+      </form>
 
       <hr />
 
