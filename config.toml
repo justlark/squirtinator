@@ -39,3 +39,17 @@ port = 80
 pin = 0
 # The duration of the pulse, in milliseconds.
 duration = 500
+
+# These settings control how frequently the toy will squirt. The user selects a
+# minimum and maximum duration, and the toy will randomly select a duration
+# within that range to wait before squirting again.
+[frequency]
+# These control the lower and upper bounds of the range sliders in the settings
+# menu.
+lower_bound = 0
+upper_bound = 300
+
+# These control the default minimum and maximum values, which the user can
+# adjust in the settings menu.
+default_min = 30
+default_max = 120

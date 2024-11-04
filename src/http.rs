@@ -16,6 +16,7 @@ use crate::config;
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const HTML_SETTINGS: &[u8] = include_bytes!("../client/settings.html");
 const CSS: &[u8] = include_bytes!("../client/index.css");
+const JS: &[u8] = include_bytes!("../client/index.js");
 const HTMX: &[u8] = include_bytes!("../client/htmx.min.js.gz");
 
 const BUF_SIZE: usize = 1024;
@@ -116,6 +117,19 @@ where
     )?;
 
     server.fn_handler(
+        "/assets/index.js",
+        Method::Get,
+        |req| -> anyhow::Result<()> {
+            let headers = [("Content-Type", "application/javascript")];
+
+            let mut resp = req.into_response(200, None, &headers)?;
+            resp.write_all(JS)?;
+
+            Ok(())
+        },
+    )?;
+
+    server.fn_handler(
         "/assets/htmx.min.js",
         Method::Get,
         |req| -> anyhow::Result<()> {
@@ -191,6 +205,42 @@ where
         )?;
 
         Ok(())
+    })?;
+
+    let user_nvs_part = nvs_part.clone();
+
+    server.fn_handler("/api/min-freq", Method::Get, move |req| -> anyhow::Result<()> {
+        html_resp(
+            req,
+            200,
+            &format!(
+                r#"
+                <input id="min-freq-input" type="range" name="min_freq" value="{default}" min="{min}" max="{max}"/>
+                <span id="min-freq-value" class="slider-value">{default}</span>
+                "#,
+                default=config::freq_default_min(user_nvs_part.clone())?,
+                min=config::freq_lower_bound(user_nvs_part.clone())?,
+                max=config::freq_upper_bound(user_nvs_part.clone())?,
+            ),
+        )
+    })?;
+
+    let user_nvs_part = nvs_part.clone();
+
+    server.fn_handler("/api/max-freq", Method::Get, move |req| -> anyhow::Result<()> {
+        html_resp(
+            req,
+            200,
+            &format!(
+                r#"
+                <input id="max-freq-input" type="range" name="max_freq" value="{default}" min="{min}" max="{max}"/>
+                <span id="max-freq-value" class="slider-value">{default}</span>
+                "#,
+                default=config::freq_default_max(user_nvs_part.clone())?,
+                min=config::freq_lower_bound(user_nvs_part.clone())?,
+                max=config::freq_upper_bound(user_nvs_part.clone())?,
+            ),
+        )
     })?;
 
     let user_nvs_part = nvs_part.clone();

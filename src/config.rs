@@ -76,11 +76,20 @@ struct IoConfig {
 }
 
 #[derive(Debug, Deserialize)]
+struct FreqConfig {
+    lower_bound: u32,
+    upper_bound: u32,
+    default_min: u32,
+    default_max: u32,
+}
+
+#[derive(Debug, Deserialize)]
 struct Config {
     wifi: WifiConfig,
     access_point: AccessPointConfig,
     http: HttpConfig,
     io: IoConfig,
+    frequency: FreqConfig,
 }
 
 impl Config {
@@ -119,6 +128,15 @@ where
     }
 }
 
+impl<P> ValueSource<u32> for EspNvs<P>
+where
+    P: NvsPartitionId,
+{
+    fn get_value(&mut self, key: &str) -> anyhow::Result<Option<u32>> {
+        Ok(self.get_u32(key)?)
+    }
+}
+
 pub fn wifi_is_configured<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<bool> {
     let ssid = wifi_ssid(nvs_part)?;
     Ok(ssid.is_some() && !ssid.as_ref().unwrap().is_empty())
@@ -133,7 +151,7 @@ pub fn wifi_ip_addr<P: NvsPartitionId>(
 
     Ok(nvs
         .get_value("wifi.ip_addr")?
-        .map(|addr| addr.parse())
+        .map(|addr: String| addr.parse())
         .transpose()?)
 }
 
@@ -416,4 +434,76 @@ pub fn wifi_config<P: NvsPartitionId>(
         Some(client_config) => Ok(wifi::Configuration::Mixed(client_config, ap_config)),
         None => Ok(wifi::Configuration::AccessPoint(ap_config)),
     }
+}
+
+pub fn freq_lower_bound<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
+    let mut nvs = user_nvs(nvs_part)?;
+    let default = default_config()?;
+    Ok(nvs
+        .get_value("freq.lower_bound")?
+        .unwrap_or(default.frequency.lower_bound))
+}
+
+pub fn set_freq_lower_bound<P: NvsPartitionId>(
+    nvs_part: EspNvsPartition<P>,
+    lower_bound: u32,
+) -> anyhow::Result<()> {
+    let nvs = user_nvs(nvs_part)?;
+    nvs.set_u32("freq.lower_bound", lower_bound)?;
+
+    Ok(())
+}
+
+pub fn freq_upper_bound<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
+    let mut nvs = user_nvs(nvs_part)?;
+    let default = default_config()?;
+    Ok(nvs
+        .get_value("freq.upper_bound")?
+        .unwrap_or(default.frequency.upper_bound))
+}
+
+pub fn set_freq_upper_bound<P: NvsPartitionId>(
+    nvs_part: EspNvsPartition<P>,
+    upper_bound: u32,
+) -> anyhow::Result<()> {
+    let nvs = user_nvs(nvs_part)?;
+    nvs.set_u32("freq.upper_bound", upper_bound)?;
+
+    Ok(())
+}
+
+pub fn freq_default_min<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
+    let mut nvs = user_nvs(nvs_part)?;
+    let default = default_config()?;
+    Ok(nvs
+        .get_value("freq.default_min")?
+        .unwrap_or(default.frequency.default_min))
+}
+
+pub fn set_freq_default_min<P: NvsPartitionId>(
+    nvs_part: EspNvsPartition<P>,
+    default_min: u32,
+) -> anyhow::Result<()> {
+    let nvs = user_nvs(nvs_part)?;
+    nvs.set_u32("freq.default_min", default_min)?;
+
+    Ok(())
+}
+
+pub fn freq_default_max<P: NvsPartitionId>(nvs_part: EspNvsPartition<P>) -> anyhow::Result<u32> {
+    let mut nvs = user_nvs(nvs_part)?;
+    let default = default_config()?;
+    Ok(nvs
+        .get_value("freq.default_max")?
+        .unwrap_or(default.frequency.default_max))
+}
+
+pub fn set_freq_default_max<P: NvsPartitionId>(
+    nvs_part: EspNvsPartition<P>,
+    default_max: u32,
+) -> anyhow::Result<()> {
+    let nvs = user_nvs(nvs_part)?;
+    nvs.set_u32("freq.default_max", default_max)?;
+
+    Ok(())
 }
