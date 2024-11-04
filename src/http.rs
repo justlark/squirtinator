@@ -233,7 +233,7 @@ where
             &format!(
                 r#"
                 <input id="min-freq-input" type="range" name="min_freq" value="{default}" min="{min}" max="{max}"/>
-                <span id="min-freq-value" class="slider-value">{default}</span>
+                <span><span id="min-freq-value" class="slider-value">{default}</span>s</span>
                 "#,
                 default=config::freq_min(user_nvs_part.clone())?,
                 min=config::freq_lower_bound(user_nvs_part.clone())?,
@@ -251,7 +251,7 @@ where
             &format!(
                 r#"
                 <input id="max-freq-input" type="range" name="max_freq" value="{default}" min="{min}" max="{max}"/>
-                <span id="max-freq-value" class="slider-value">{default}</span>
+                <span><span id="max-freq-value" class="slider-value">{default}</span>s</span>
                 "#,
                 default=config::freq_max(user_nvs_part.clone())?,
                 min=config::freq_lower_bound(user_nvs_part.clone())?,
