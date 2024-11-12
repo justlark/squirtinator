@@ -1,4 +1,5 @@
 mod config;
+mod gpio;
 mod http;
 mod wifi;
 
@@ -7,7 +8,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::{
-        self, gpio,
+        self,
         prelude::Peripherals,
         task::{block_on, queue::Queue},
     },
@@ -16,7 +17,10 @@ use esp_idf_svc::{
     timer::EspTaskTimerService,
 };
 
-fn run() -> anyhow::Result<()> {
+#[derive(Debug)]
+pub enum Never {}
+
+fn run() -> anyhow::Result<Never> {
     // One-time initialization of the global config.
     config::init_config()?;
 
@@ -61,24 +65,7 @@ fn run() -> anyhow::Result<()> {
     // Don't drop this.
     let _subscription = wifi::handle_events(&sysloop)?;
 
-    let mut pin_driver = gpio::PinDriver::output(config::io_pin(peripherals.pins)?)?;
-
-    loop {
-        let duration = config::io_duration()?;
-        pin_trigger_queue.recv_front(hal::delay::BLOCK);
-
-        log::info!(
-            "Setting GPIO pin {} to high for {}ms.",
-            pin_driver.pin(),
-            duration.as_millis(),
-        );
-        pin_driver.set_level(gpio::Level::High)?;
-
-        std::thread::sleep(duration);
-
-        log::info!("Setting GPIO pin {} to low.", pin_driver.pin(),);
-        pin_driver.set_level(gpio::Level::Low)?;
-    }
+    gpio::start_loop(peripherals.pins, pin_trigger_queue)
 }
 
 fn main() {
@@ -89,8 +76,7 @@ fn main() {
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    if let Err(err) = run() {
-        log::error!("{:?}", err);
-        hal::reset::restart();
-    }
+    let Err(err) = run();
+    log::error!("{:?}", err);
+    hal::reset::restart();
 }

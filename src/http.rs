@@ -193,6 +193,18 @@ where
         },
     )?;
 
+    server.fn_handler(
+        "/api/start",
+        Method::Post,
+        move |req| -> anyhow::Result<()> { todo!() },
+    )?;
+
+    server.fn_handler(
+        "/api/stop",
+        Method::Post,
+        move |req| -> anyhow::Result<()> { todo!() },
+    )?;
+
     let user_nvs_part = nvs_part.clone();
 
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
