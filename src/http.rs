@@ -205,8 +205,22 @@ where
         move |req| -> anyhow::Result<()> {
             // This signal must make it to the GPIO thread, so we block until it's sent.
             queue.send(gpio::Signal::StartAuto)?;
-            req.into_status_response(204)?;
-            Ok(())
+
+            html_resp(
+                req,
+                200,
+                r#"
+                <button
+                  id="auto-button"
+                  role="switch"
+                  aria-checked="true"
+                  hx-post="/api/stop"
+                  hx-swap="outerHTML"
+                >
+                  AUTO
+                </button>
+                "#,
+            )
         },
     )?;
 
@@ -218,8 +232,22 @@ where
         move |req| -> anyhow::Result<()> {
             // This signal must make it to the GPIO thread, so we block until it's sent.
             queue.send(gpio::Signal::StopAuto)?;
-            req.into_status_response(204)?;
-            Ok(())
+
+            html_resp(
+                req,
+                200,
+                r#"
+                <button
+                  id="auto-button"
+                  role="switch"
+                  aria-checked="false"
+                  hx-post="/api/start"
+                  hx-swap="outerHTML"
+                >
+                  AUTO
+                </button>
+                "#,
+            )
         },
     )?;
 

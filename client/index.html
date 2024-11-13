@@ -13,7 +13,15 @@
     <h1 id="site-title">Squirtinator Remote</h1>
     <main id="remote" aria-labelledby="site-title">
       <button id="now-button" hx-post="/api/fire" hx-swap="none">NOW</button>
-      <button id="auto-button" role="switch" aria-checked="false">AUTO</button>
+      <button
+        id="auto-button"
+        role="switch"
+        aria-checked="false"
+        hx-post="/api/start"
+        hx-swap="outerHTML"
+      >
+        AUTO
+      </button>
       <a
         id="settings-link"
         class="nav-button nav-button-forward"
