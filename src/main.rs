@@ -1,6 +1,7 @@
 mod config;
 mod gpio;
 mod http;
+mod queue;
 mod wifi;
 
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -43,10 +44,10 @@ fn run() -> anyhow::Result<Never> {
             Box::pin(std::future::ready(Ok(())))
         };
 
-    let pin_trigger_queue = Arc::new(gpio::PinTriggerQueue::new());
+    let signaler = Arc::new(gpio::Signaler::new());
 
     // Don't drop this.
-    let _server = http::serve(nvs_part.clone(), Arc::clone(&pin_trigger_queue))?;
+    let _server = http::serve(nvs_part.clone(), Arc::clone(&signaler))?;
 
     block_on(connection)?;
 
@@ -56,7 +57,7 @@ fn run() -> anyhow::Result<Never> {
     // Don't drop this.
     let _subscription = wifi::handle_events(&sysloop)?;
 
-    gpio::listen(nvs_part, peripherals.pins, pin_trigger_queue)
+    gpio::listen(nvs_part, peripherals.pins, signaler)
 }
 
 fn main() {

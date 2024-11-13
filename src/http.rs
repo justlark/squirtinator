@@ -12,7 +12,7 @@ use serde::Deserialize;
 
 use crate::{
     config,
-    gpio::{self, PinTriggerQueue},
+    gpio::{self, Signaler},
 };
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
@@ -105,7 +105,7 @@ impl FreqSettingsFormBody {
 
 pub fn serve<P>(
     nvs_part: EspNvsPartition<P>,
-    pin_trigger_queue: Arc<PinTriggerQueue>,
+    signaler: Arc<Signaler>,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
@@ -180,16 +180,13 @@ where
     // API endpoints
     //
 
-    let queue = Arc::clone(&pin_trigger_queue);
+    let this_signaler = Arc::clone(&signaler);
 
     server.fn_handler(
         "/api/fire",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            // Don't block if the queue is full.
-            if !queue.try_send(gpio::Signal::Fire) {
-                log::info!("GPIO output pin is already active. Skipping this pulse.");
-            }
+            this_signaler.send(gpio::Signal::Fire);
 
             req.into_ok_response()?;
 
@@ -197,14 +194,13 @@ where
         },
     )?;
 
-    let queue = Arc::clone(&pin_trigger_queue);
+    let this_signaler = Arc::clone(&signaler);
 
     server.fn_handler(
         "/api/start",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            // This signal must make it to the GPIO thread, so we block until it's sent.
-            queue.send(gpio::Signal::StartAuto)?;
+            this_signaler.send(gpio::Signal::StartAuto);
 
             html_resp(
                 req,
@@ -224,14 +220,13 @@ where
         },
     )?;
 
-    let queue = Arc::clone(&pin_trigger_queue);
+    let this_signaler = Arc::clone(&signaler);
 
     server.fn_handler(
         "/api/stop",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            // This signal must make it to the GPIO thread, so we block until it's sent.
-            queue.send(gpio::Signal::StopAuto)?;
+            this_signaler.send(gpio::Signal::StopAuto);
 
             html_resp(
                 req,

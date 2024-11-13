@@ -3,7 +3,7 @@ let freqSliderEventsRegistered = false;
 // Register event listeners for the squirt frequency sliders.
 const watchFreqSliders = () => {
   // The min and max sliders must always be at least MIN_SLIDER_RANGE apart.
-  const MIN_SLIDER_RANGE = 30;
+  const MIN_SLIDER_RANGE = 10;
 
   if (freqSliderEventsRegistered) {
     return;

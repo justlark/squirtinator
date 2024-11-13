@@ -1,25 +1,13 @@
-use std::{
-    fmt,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
-    time::Duration,
-};
+use std::{sync::Arc, thread, time::Duration};
 
 use esp_idf_svc::{
-    hal::{
-        self,
-        gpio::{self, Pins},
-        task::queue::Queue,
-    },
+    hal::gpio::{self, Pins},
     nvs::{EspNvsPartition, NvsPartitionId},
 };
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-use crate::{config, Never};
+use crate::{config, queue::RendezvousQueue, Never};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Signal {
@@ -28,43 +16,44 @@ pub enum Signal {
     StopAuto,
 }
 
-pub struct PinTriggerQueue(Queue<Signal>);
-
-impl fmt::Debug for PinTriggerQueue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PinTriggerQueue").finish_non_exhaustive()
-    }
+#[derive(Debug)]
+pub struct Signaler {
+    fire_queue: RendezvousQueue<()>,
+    auto_queue: RendezvousQueue<bool>,
 }
 
-impl PinTriggerQueue {
+impl Signaler {
     pub fn new() -> Self {
-        // We use a rendezvous queue to pass messages from the HTTP server to trigger the GPIO pin.
-        // On the sending side, we don't block if the queue is full. This has the effect that if
-        // the user presses the button to trigger the toy while it's already doing something, it
-        // will be a no-op rather then queue up multiple pulses over the GPIO pin. We want to wait
-        // until the toy is done doing its thing before we allow it to be activated again.
-        Self(Queue::new(0))
-    }
-
-    pub fn send(&self, signal: Signal) -> anyhow::Result<()> {
-        self.0.send_back(signal, hal::delay::BLOCK)?;
-        Ok(())
-    }
-
-    pub fn try_send(&self, signal: Signal) -> bool {
-        if self.0.send_back(signal, 0).is_err() {
-            // The queue is full.
-            false
-        } else {
-            true
+        Self {
+            fire_queue: RendezvousQueue::new(),
+            auto_queue: RendezvousQueue::new(),
         }
     }
 
-    pub fn recv(&self) -> Signal {
-        if let Some((signal, _)) = self.0.recv_front(hal::delay::BLOCK) {
-            signal
-        } else {
-            unreachable!();
+    pub fn send(&self, signal: Signal) {
+        match signal {
+            Signal::Fire => {
+                // We don't block if the queue is full. This has the effect that if the user
+                // presses the button to trigger the toy while it's already doing something, it
+                // will be a no-op rather then queue up multiple pulses over the GPIO pin. We want
+                // to wait until the toy is done doing its thing before we allow it to be activated
+                // again.
+                if !self.fire_queue.try_send(()) {
+                    log::info!("GPIO output pin is already active. Skipping this pulse.");
+                }
+            }
+            // Staring or stopping auto mode should immediately override the previous setting
+            // without blocking.
+            Signal::StartAuto => {
+                self.auto_queue.try_recv();
+                self.auto_queue.send(true);
+                log::info!("Starting auto mode.");
+            }
+            Signal::StopAuto => {
+                self.auto_queue.try_recv();
+                self.auto_queue.send(false);
+                log::info!("Stopping auto mode.");
+            }
         }
     }
 }
@@ -72,7 +61,7 @@ impl PinTriggerQueue {
 pub fn listen<P>(
     nvs_part: EspNvsPartition<P>,
     pins: Pins,
-    queue: Arc<PinTriggerQueue>,
+    signaler: Arc<Signaler>,
 ) -> anyhow::Result<Never>
 where
     P: NvsPartitionId + Send + Sync + 'static,
@@ -80,48 +69,57 @@ where
     let mut pin_driver = gpio::PinDriver::output(config::io_pin(pins)?)?;
     let mut rng = SmallRng::from_entropy();
 
-    let is_auto_set = Arc::new(AtomicBool::new(false));
-    let queue_recv = queue;
+    let this_signaler = Arc::clone(&signaler);
 
-    let is_auto_get = Arc::clone(&is_auto_set);
-    let queue_send = Arc::clone(&queue_recv);
+    thread::spawn(move || {
+        let mut is_auto = false;
 
-    thread::spawn(move || loop {
-        let mut wait_then_fire = || -> anyhow::Result<()> {
-            // We read these on each loop iteration because they're configurable by the user and
-            // may change at any time.
+        let mut fire = || -> anyhow::Result<()> {
+            // We read these each time because they're configurable by the user and may change at
+            // any time.
             let min_seconds = config::freq_min(nvs_part.clone())?;
             let max_seconds = config::freq_max(nvs_part.clone())?;
 
             let seconds_to_wait = rng.gen_range(min_seconds..max_seconds);
+            thread::sleep(Duration::from_secs(seconds_to_wait.into()));
 
-            if is_auto_get.load(Ordering::Relaxed) {
-                thread::sleep(Duration::from_secs(seconds_to_wait.into()));
-                queue_send.send(Signal::Fire)?;
+            // Check in case auto mode was disabled while we were sleeping.
+            if this_signaler.auto_queue.try_peek() != Some(false) {
+                this_signaler.fire_queue.try_send(());
             }
 
             Ok(())
         };
 
-        if let Err(err) = wait_then_fire() {
-            log::error!("{:?}", err);
+        let mut wait_then_fire = || -> anyhow::Result<()> {
+            if is_auto {
+                // Poll for whether the user has disabled auto mode.
+                if this_signaler.auto_queue.try_recv() == Some(false) {
+                    is_auto = false;
+                } else {
+                    fire()?;
+                }
+            // Block until the user enables auto mode so we don't get caught in a busy loop.
+            } else if this_signaler.auto_queue.recv() {
+                is_auto = true;
+                fire()?;
+            }
+
+            Ok(())
+        };
+
+        loop {
+            if let Err(err) = wait_then_fire() {
+                log::error!("{:?}", err);
+            }
         }
     });
 
     loop {
         let duration = config::io_duration()?;
 
-        match queue_recv.recv() {
-            Signal::StartAuto => {
-                is_auto_set.store(true, Ordering::Relaxed);
-                continue;
-            }
-            Signal::StopAuto => {
-                is_auto_set.store(false, Ordering::Relaxed);
-                continue;
-            }
-            Signal::Fire => {}
-        }
+        // Wait until we get a message to activate the GPIO pin.
+        signaler.fire_queue.recv();
 
         log::info!(
             "Setting GPIO pin {} to high for {}ms.",
