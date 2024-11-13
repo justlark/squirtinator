@@ -7,11 +7,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
-    hal::{
-        self,
-        prelude::Peripherals,
-        task::{block_on, queue::Queue},
-    },
+    hal::{self, prelude::Peripherals, task::block_on},
     mdns::EspMdns,
     nvs::EspDefaultNvsPartition,
     timer::EspTaskTimerService,
@@ -47,12 +43,7 @@ fn run() -> anyhow::Result<Never> {
             Box::pin(std::future::ready(Ok(())))
         };
 
-    // We use a queue of size 1 to pass messages from the HTTP server to trigger the GPIO pin. On
-    // the sending side, we don't block if the queue is full. This has the effect that if the user
-    // presses the button to trigger the toy while it's already doing something, it will be a no-op
-    // rather then queue up multiple pulses over the GPIO pin. We want to wait until the toy is
-    // done doing its thing before we allow it to be activated again.
-    let pin_trigger_queue = Arc::new(Queue::new(1));
+    let pin_trigger_queue = Arc::new(gpio::PinTriggerQueue::new());
 
     // Don't drop this.
     let _server = http::serve(nvs_part.clone(), Arc::clone(&pin_trigger_queue))?;
@@ -65,7 +56,7 @@ fn run() -> anyhow::Result<Never> {
     // Don't drop this.
     let _subscription = wifi::handle_events(&sysloop)?;
 
-    gpio::start_loop(peripherals.pins, pin_trigger_queue)
+    gpio::listen(nvs_part, peripherals.pins, pin_trigger_queue)
 }
 
 fn main() {

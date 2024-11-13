@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use esp_idf_svc::{
-    hal::task::queue::Queue,
     http::{
         server::{Configuration, Connection, EspHttpServer, Request},
         Method,
@@ -11,7 +10,10 @@ use esp_idf_svc::{
 };
 use serde::Deserialize;
 
-use crate::config;
+use crate::{
+    config,
+    gpio::{self, PinTriggerQueue},
+};
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const HTML_SETTINGS: &[u8] = include_bytes!("../client/settings.html");
@@ -103,7 +105,7 @@ impl FreqSettingsFormBody {
 
 pub fn serve<P>(
     nvs_part: EspNvsPartition<P>,
-    pin_trigger_queue: Arc<Queue<()>>,
+    pin_trigger_queue: Arc<PinTriggerQueue>,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
@@ -178,12 +180,14 @@ where
     // API endpoints
     //
 
+    let queue = Arc::clone(&pin_trigger_queue);
+
     server.fn_handler(
-        "/api/activate",
+        "/api/fire",
         Method::Post,
         move |req| -> anyhow::Result<()> {
             // Don't block if the queue is full.
-            if pin_trigger_queue.send_back((), 0).is_err() {
+            if !queue.try_send(gpio::Signal::Fire) {
                 log::info!("GPIO output pin is already active. Skipping this pulse.");
             }
 
@@ -193,16 +197,30 @@ where
         },
     )?;
 
+    let queue = Arc::clone(&pin_trigger_queue);
+
     server.fn_handler(
         "/api/start",
         Method::Post,
-        move |req| -> anyhow::Result<()> { todo!() },
+        move |req| -> anyhow::Result<()> {
+            // This signal must make it to the GPIO thread, so we block until it's sent.
+            queue.send(gpio::Signal::StartAuto)?;
+            req.into_status_response(204)?;
+            Ok(())
+        },
     )?;
+
+    let queue = Arc::clone(&pin_trigger_queue);
 
     server.fn_handler(
         "/api/stop",
         Method::Post,
-        move |req| -> anyhow::Result<()> { todo!() },
+        move |req| -> anyhow::Result<()> {
+            // This signal must make it to the GPIO thread, so we block until it's sent.
+            queue.send(gpio::Signal::StopAuto)?;
+            req.into_status_response(204)?;
+            Ok(())
+        },
     )?;
 
     let user_nvs_part = nvs_part.clone();
