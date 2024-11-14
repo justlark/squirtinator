@@ -246,10 +246,10 @@ where
         },
     )?;
 
-    let user_nvs_part = nvs_part.clone();
+    let this_nvs_part = nvs_part.clone();
 
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {
-        let addr = config::wifi_ip_addr(user_nvs_part.clone())?;
+        let addr = config::wifi_ip_addr(this_nvs_part.clone())?;
 
         html_resp(
             req,
@@ -277,43 +277,7 @@ where
         Ok(())
     })?;
 
-    let user_nvs_part = nvs_part.clone();
-
-    server.fn_handler("/api/min-freq", Method::Get, move |req| -> anyhow::Result<()> {
-        html_resp(
-            req,
-            200,
-            &format!(
-                r#"
-                <input id="min-freq-input" type="range" name="min_freq" value="{default}" min="{min}" max="{max}"/>
-                <span><span id="min-freq-value" class="slider-value">{default}</span>s</span>
-                "#,
-                default=config::freq_min(user_nvs_part.clone())?,
-                min=config::freq_lower_bound(user_nvs_part.clone())?,
-                max=config::freq_upper_bound(user_nvs_part.clone())?,
-            ),
-        )
-    })?;
-
-    let user_nvs_part = nvs_part.clone();
-
-    server.fn_handler("/api/max-freq", Method::Get, move |req| -> anyhow::Result<()> {
-        html_resp(
-            req,
-            200,
-            &format!(
-                r#"
-                <input id="max-freq-input" type="range" name="max_freq" value="{default}" min="{min}" max="{max}"/>
-                <span><span id="max-freq-value" class="slider-value">{default}</span>s</span>
-                "#,
-                default=config::freq_max(user_nvs_part.clone())?,
-                min=config::freq_lower_bound(user_nvs_part.clone())?,
-                max=config::freq_upper_bound(user_nvs_part.clone())?,
-            ),
-        )
-    })?;
-
-    let user_nvs_part = nvs_part.clone();
+    let this_nvs_part = nvs_part.clone();
 
     server.fn_handler(
         "/api/settings/wifi",
@@ -322,7 +286,7 @@ where
             let req_body = read_body(&mut req)?;
             let form_body = serde_urlencoded::from_bytes::<WifiSettingsFormBody>(&req_body)?;
 
-            form_body.save(user_nvs_part.clone())?;
+            form_body.save(this_nvs_part.clone())?;
 
             html_resp(
                 req,
@@ -334,7 +298,7 @@ where
         },
     )?;
 
-    let user_nvs_part = nvs_part.clone();
+    let this_nvs_part = nvs_part.clone();
 
     server.fn_handler(
         "/api/settings/wifi/ssid",
@@ -343,7 +307,7 @@ where
             // There's no need to include the HTMX `hx-*` attributes when swapping this element in
             // for the one currently on the page, because this API endpoint will only be triggered
             // on first page load.
-            if let Some(ssid) = config::wifi_ssid(user_nvs_part.clone())? {
+            if let Some(ssid) = config::wifi_ssid(this_nvs_part.clone())? {
                 html_resp(
                     req,
                     200,
@@ -367,7 +331,7 @@ where
         },
     )?;
 
-    let user_nvs_part = nvs_part.clone();
+    let this_nvs_part = nvs_part.clone();
 
     server.fn_handler(
         "/api/settings/freq",
@@ -376,13 +340,49 @@ where
             let req_body = read_body(&mut req)?;
             let form_body = serde_urlencoded::from_bytes::<FreqSettingsFormBody>(&req_body)?;
 
-            form_body.save(user_nvs_part.clone())?;
+            form_body.save(this_nvs_part.clone())?;
 
             req.into_status_response(204)?;
 
             Ok(())
         },
     )?;
+
+    let this_nvs_part = nvs_part.clone();
+
+    server.fn_handler("/api/settings/min-freq", Method::Get, move |req| -> anyhow::Result<()> {
+        html_resp(
+            req,
+            200,
+            &format!(
+                r#"
+                <input id="min-freq-input" type="range" name="min_freq" value="{default}" min="{min}" max="{max}"/>
+                <span><span id="min-freq-value" class="slider-value">{default}</span>s</span>
+                "#,
+                default=config::freq_min(this_nvs_part.clone())?,
+                min=config::freq_lower_bound(this_nvs_part.clone())?,
+                max=config::freq_upper_bound(this_nvs_part.clone())?,
+            ),
+        )
+    })?;
+
+    let this_nvs_part = nvs_part.clone();
+
+    server.fn_handler("/api/settings/max-freq", Method::Get, move |req| -> anyhow::Result<()> {
+        html_resp(
+            req,
+            200,
+            &format!(
+                r#"
+                <input id="max-freq-input" type="range" name="max_freq" value="{default}" min="{min}" max="{max}"/>
+                <span><span id="max-freq-value" class="slider-value">{default}</span>s</span>
+                "#,
+                default=config::freq_max(this_nvs_part.clone())?,
+                min=config::freq_lower_bound(this_nvs_part.clone())?,
+                max=config::freq_upper_bound(this_nvs_part.clone())?,
+            ),
+        )
+    })?;
 
     Ok(server)
 }
