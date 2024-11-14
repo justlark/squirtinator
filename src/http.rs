@@ -246,6 +246,34 @@ where
         },
     )?;
 
+    let this_signaler = Arc::clone(&signaler);
+
+    server.fn_handler("/api/auto", Method::Get, move |req| -> anyhow::Result<()> {
+        let is_auto = this_signaler.is_auto();
+
+        let endpoint = if is_auto { "/api/stop" } else { "/api/start" };
+
+        html_resp(
+            req,
+            200,
+            format!(
+                r#"
+                    <button
+                      id="auto-button"
+                      role="switch"
+                      aria-checked="{is_auto}"
+                      hx-post="{endpoint}"
+                      hx-swap="outerHTML"
+                    >
+                      AUTO
+                    </button>
+                    "#,
+                is_auto = is_auto,
+                endpoint = endpoint,
+            ),
+        )
+    })?;
+
     let this_nvs_part = nvs_part.clone();
 
     server.fn_handler("/api/addr", Method::Get, move |req| -> anyhow::Result<()> {

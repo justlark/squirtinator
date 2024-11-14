@@ -1,4 +1,11 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
+    time::Duration,
+};
 
 use esp_idf_svc::{
     hal::gpio::{self, Pins},
@@ -20,6 +27,7 @@ pub enum Signal {
 pub struct Signaler {
     fire_queue: RendezvousQueue<()>,
     auto_queue: RendezvousQueue<bool>,
+    is_auto: AtomicBool,
 }
 
 impl Signaler {
@@ -27,6 +35,7 @@ impl Signaler {
         Self {
             fire_queue: RendezvousQueue::new(),
             auto_queue: RendezvousQueue::new(),
+            is_auto: AtomicBool::new(false),
         }
     }
 
@@ -47,14 +56,20 @@ impl Signaler {
             Signal::StartAuto => {
                 self.auto_queue.try_recv();
                 self.auto_queue.send(true);
+                self.is_auto.store(true, Ordering::Relaxed);
                 log::info!("Starting auto mode.");
             }
             Signal::StopAuto => {
                 self.auto_queue.try_recv();
                 self.auto_queue.send(false);
+                self.is_auto.store(false, Ordering::Relaxed);
                 log::info!("Stopping auto mode.");
             }
         }
+    }
+
+    pub fn is_auto(&self) -> bool {
+        self.is_auto.load(Ordering::Relaxed)
     }
 }
 

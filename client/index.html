@@ -17,8 +17,9 @@
         id="auto-button"
         role="switch"
         aria-checked="false"
-        hx-post="/api/start"
         hx-swap="outerHTML"
+        hx-get="/api/auto"
+        hx-trigger="load"
       >
         AUTO
       </button>
