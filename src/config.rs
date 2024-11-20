@@ -72,7 +72,10 @@ struct HttpConfig {
 #[derive(Debug, Deserialize)]
 struct IoConfig {
     pin: u8,
-    duration: u64,
+    address: u8,
+    message: u8,
+    baudrate: u32,
+    timeout: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,10 +309,20 @@ pub fn io_pin(pins: Pins) -> anyhow::Result<AnyOutputPin> {
     })
 }
 
-pub fn io_duration() -> anyhow::Result<Duration> {
-    Ok(Duration::from_millis(
-        default_config().map(|config| config.io.duration)?,
-    ))
+pub fn io_address() -> anyhow::Result<u8> {
+    default_config().map(|config| config.io.address)
+}
+
+pub fn io_message() -> anyhow::Result<u8> {
+    default_config().map(|config| config.io.message)
+}
+
+pub fn io_baudrate() -> anyhow::Result<u32> {
+    default_config().map(|config| config.io.baudrate)
+}
+
+pub fn io_timeout() -> anyhow::Result<u32> {
+    default_config().map(|config| config.io.timeout)
 }
 
 pub fn wifi_client_config<P: NvsPartitionId>(

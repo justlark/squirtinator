@@ -35,10 +35,16 @@ gateway = "192.168.0.1"
 port = 80
 
 [io]
-# The GPIO pin to send a pulse to when the toy is activated.
+# The GPIO pin to use for communicating with the pump controller over I2C.
 pin = 0
-# The duration of the pulse, in milliseconds.
-duration = 500
+# The I2C address of the pump controller.
+address = 0x00
+# The single-byte message to send to the pump controller to trigger a squirt.
+message = 0xff
+# The baud rate.
+baudrate = 1_000_000
+# The timeout in milliseconds for I2C writes.
+timeout = 100
 
 # These settings control how frequently the toy will squirt. The user selects a
 # minimum and maximum duration, and the toy will randomly select a duration
