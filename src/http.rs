@@ -10,10 +10,7 @@ use esp_idf_svc::{
 };
 use serde::Deserialize;
 
-use crate::{
-    config,
-    gpio::{self, Signaler},
-};
+use crate::{config, io};
 
 const HTML_INDEX: &[u8] = include_bytes!("../client/index.html");
 const HTML_SETTINGS: &[u8] = include_bytes!("../client/settings.html");
@@ -105,7 +102,7 @@ impl FreqSettingsFormBody {
 
 pub fn serve<P>(
     nvs_part: EspNvsPartition<P>,
-    signaler: Arc<Signaler>,
+    signaler: Arc<io::Signaler>,
 ) -> anyhow::Result<EspHttpServer<'static>>
 where
     P: NvsPartitionId + Send + Sync + 'static,
@@ -186,7 +183,7 @@ where
         "/api/fire",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            this_signaler.send(gpio::Signal::Fire);
+            this_signaler.send(io::Signal::Fire);
 
             req.into_ok_response()?;
 
@@ -200,7 +197,7 @@ where
         "/api/start",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            this_signaler.send(gpio::Signal::StartAuto);
+            this_signaler.send(io::Signal::StartAuto);
 
             html_resp(
                 req,
@@ -226,7 +223,7 @@ where
         "/api/stop",
         Method::Post,
         move |req| -> anyhow::Result<()> {
-            this_signaler.send(gpio::Signal::StopAuto);
+            this_signaler.send(io::Signal::StopAuto);
 
             html_resp(
                 req,
