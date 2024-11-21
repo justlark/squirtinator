@@ -2,7 +2,7 @@
 
 🚧 This repo is under construction. 🚧
 
-The Squirtinator is a DIY sex toy that uses a peristaltic pump to deliver lube
+The Squirtinator is a DIY sex toy that uses a diaphragm pump to deliver lube
 through a tube at high velocity.
 
 It can be remotely controlled over WiFi via a self-hosted web interface

@@ -51,7 +51,7 @@ timeout = 100
 block_time = 500
 # When in test mode, the actual I2C call is skipped. Useful for testing when
 # there's no target device connected.
-test_mode = true
+test_mode = false
 
 # These settings control how frequently the toy will squirt. The user selects a
 # minimum and maximum duration, and the toy will randomly select a duration
