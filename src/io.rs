@@ -8,7 +8,8 @@ use std::{
 };
 
 use esp_idf_svc::{
-    hal::gpio::{self, Pins},
+    hal::gpio,
+    hal::i2c,
     nvs::{EspNvsPartition, NvsPartitionId},
 };
 use rand::prelude::*;
@@ -75,20 +76,17 @@ impl Signaler {
 
 pub fn listen<P>(
     nvs_part: EspNvsPartition<P>,
-    pins: Pins,
+    i2c: i2c::I2C0,
+    pins: gpio::Pins,
     signaler: Arc<Signaler>,
 ) -> anyhow::Result<Never>
 where
     P: NvsPartitionId + Send + Sync + 'static,
 {
-    let mut pin_driver = gpio::PinDriver::output(config::io_pin(pins)?)?;
     let mut rng = SmallRng::from_entropy();
-
     let this_signaler = Arc::clone(&signaler);
 
     thread::spawn(move || {
-        let mut is_auto = false;
-
         let mut fire = || -> anyhow::Result<()> {
             // We read these each time because they're configurable by the user and may change at
             // any time.
@@ -105,6 +103,8 @@ where
 
             Ok(())
         };
+
+        let mut is_auto = false;
 
         let mut wait_then_fire = || -> anyhow::Result<()> {
             if is_auto {
@@ -130,22 +130,29 @@ where
         }
     });
 
-    loop {
-        let duration = config::io_duration()?;
+    let mut pins = config::io_pins(pins)?;
+    let address = config::io_address()?;
+    let message = config::io_message()?;
+    let baudrate = config::io_baudrate()?;
+    let timeout = config::io_timeout()?;
 
-        // Wait until we get a message to activate the GPIO pin.
+    let i2c_config = i2c::I2cConfig {
+        baudrate: baudrate.into(),
+        ..Default::default()
+    };
+
+    let mut driver = i2c::I2cDriver::new(i2c, pins.sda_pin()?, pins.scl_pin()?, &i2c_config)?;
+
+    loop {
+        // Wait until we get a message to trigger the pump over I2C.
         signaler.fire_queue.recv();
 
         log::info!(
-            "Setting GPIO pin {} to high for {}ms.",
-            pin_driver.pin(),
-            duration.as_millis(),
+            "Activating the pump over I2C at address {:#04x} with message {:?}.",
+            address,
+            message,
         );
-        pin_driver.set_level(gpio::Level::High)?;
 
-        thread::sleep(duration);
-
-        log::info!("Setting GPIO pin {} to low.", pin_driver.pin(),);
-        pin_driver.set_level(gpio::Level::Low)?;
+        driver.write(address, &message, timeout)?;
     }
 }

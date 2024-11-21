@@ -57,7 +57,7 @@ fn run() -> anyhow::Result<Never> {
     // Don't drop this.
     let _subscription = wifi::handle_events(&sysloop)?;
 
-    io::listen(nvs_part, peripherals.pins, signaler)
+    io::listen(nvs_part, peripherals.i2c0, peripherals.pins, signaler)
 }
 
 fn main() {
