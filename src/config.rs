@@ -1,5 +1,6 @@
 use std::fmt;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use anyhow::{anyhow, bail};
 use esp_idf_svc::hal::gpio;
@@ -77,6 +78,7 @@ struct IoConfig {
     message: Vec<u8>,
     baudrate: u32,
     timeout: u32,
+    block_time: u32,
     test_mode: bool,
 }
 
@@ -405,6 +407,12 @@ pub fn io_baudrate() -> anyhow::Result<u32> {
 
 pub fn io_timeout() -> anyhow::Result<u32> {
     default_config().map(|config| config.io.timeout)
+}
+
+pub fn io_block_time() -> anyhow::Result<Duration> {
+    Ok(Duration::from_millis(
+        default_config().map(|config| config.io.block_time.into())?,
+    ))
 }
 
 pub fn io_test_mode() -> anyhow::Result<bool> {

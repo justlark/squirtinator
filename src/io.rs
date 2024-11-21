@@ -45,11 +45,10 @@ impl Signaler {
             Signal::Fire => {
                 // We don't block if the queue is full. This has the effect that if the user
                 // presses the button to trigger the toy while it's already doing something, it
-                // will be a no-op rather then queue up multiple pulses over the GPIO pin. We want
-                // to wait until the toy is done doing its thing before we allow it to be activated
-                // again.
+                // will be a no-op rather than queue up I2C writes. We want to wait until the toy
+                // is done doing its thing before we allow it to be activated again.
                 if !self.fire_queue.try_send(()) {
-                    log::info!("GPIO output pin is already active. Skipping this pulse.");
+                    log::info!("Toy is already active. Skipping this I2C write.");
                 }
             }
             // Staring or stopping auto mode should immediately override the previous setting
@@ -135,6 +134,7 @@ where
     let message = config::io_message()?;
     let baudrate = config::io_baudrate()?;
     let timeout = config::io_timeout()?;
+    let block_time = config::io_block_time()?;
     let test_mode = config::io_test_mode()?;
 
     let i2c_config = i2c::I2cConfig {
@@ -157,5 +157,7 @@ where
         if !test_mode {
             driver.write(address, &message, timeout)?;
         }
+
+        thread::sleep(block_time);
     }
 }

@@ -44,8 +44,11 @@ address = 0x01
 message = []
 # The baud rate.
 baudrate = 1_000_000
-# The timeout in milliseconds for I2C writes.
+# The timeout for I2C writes, in milliseconds.
 timeout = 100
+# The minimum amount of time allowed between I2C writes, in milliseconds.
+# Attempts to activate the pump more frequently than this are ignored.
+block_time = 500
 # When in test mode, the actual I2C call is skipped. Useful for testing when
 # there's no target device connected.
 test_mode = true
