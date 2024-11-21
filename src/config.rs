@@ -1,8 +1,8 @@
+use std::fmt;
 use std::sync::OnceLock;
-use std::time::Duration;
 
 use anyhow::{anyhow, bail};
-use esp_idf_svc::hal::gpio::{AnyOutputPin, Pins};
+use esp_idf_svc::hal::gpio;
 use esp_idf_svc::ipv4::{self, Ipv4Addr};
 use esp_idf_svc::netif::NetifConfiguration;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsPartitionId};
@@ -71,9 +71,10 @@ struct HttpConfig {
 
 #[derive(Debug, Deserialize)]
 struct IoConfig {
-    pin: u8,
+    sda_pin: u8,
+    scl_pin: u8,
     address: u8,
-    message: u8,
+    message: Vec<u8>,
     baudrate: u32,
     timeout: u32,
 }
@@ -285,27 +286,107 @@ pub fn http_port() -> anyhow::Result<u16> {
     default_config().map(|config| config.http.port)
 }
 
-pub fn io_pin(pins: Pins) -> anyhow::Result<AnyOutputPin> {
-    let pin_num = default_config()?.io.pin;
+struct GpioPins {
+    gpio0: Option<gpio::Gpio0>,
+    gpio1: Option<gpio::Gpio1>,
+    gpio2: Option<gpio::Gpio2>,
+    gpio3: Option<gpio::Gpio3>,
+    gpio4: Option<gpio::Gpio4>,
+    gpio5: Option<gpio::Gpio5>,
+    gpio6: Option<gpio::Gpio6>,
+    gpio7: Option<gpio::Gpio7>,
+    gpio8: Option<gpio::Gpio8>,
+    gpio9: Option<gpio::Gpio9>,
+    gpio10: Option<gpio::Gpio10>,
+    gpio18: Option<gpio::Gpio18>,
+    gpio19: Option<gpio::Gpio19>,
+    gpio20: Option<gpio::Gpio20>,
+    gpio21: Option<gpio::Gpio21>,
+}
 
-    // Only match on the GPIO pins that are available on the ESP32-C3-DevKit-RUST-1 board.
-    Ok(match pin_num {
-        0 => pins.gpio0.into(),
-        1 => pins.gpio1.into(),
-        2 => pins.gpio2.into(),
-        3 => pins.gpio3.into(),
-        4 => pins.gpio4.into(),
-        5 => pins.gpio5.into(),
-        6 => pins.gpio6.into(),
-        7 => pins.gpio7.into(),
-        8 => pins.gpio8.into(),
-        9 => pins.gpio9.into(),
-        10 => pins.gpio10.into(),
-        18 => pins.gpio18.into(),
-        19 => pins.gpio19.into(),
-        20 => pins.gpio20.into(),
-        21 => pins.gpio21.into(),
-        _ => bail!("Invalid GPIO pin number: {}", pin_num),
+impl fmt::Debug for GpioPins {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GpioPins").finish_non_exhaustive()
+    }
+}
+
+impl From<gpio::Pins> for GpioPins {
+    fn from(pins: gpio::Pins) -> Self {
+        Self {
+            gpio0: Some(pins.gpio0),
+            gpio1: Some(pins.gpio1),
+            gpio2: Some(pins.gpio2),
+            gpio3: Some(pins.gpio3),
+            gpio4: Some(pins.gpio4),
+            gpio5: Some(pins.gpio5),
+            gpio6: Some(pins.gpio6),
+            gpio7: Some(pins.gpio7),
+            gpio8: Some(pins.gpio8),
+            gpio9: Some(pins.gpio9),
+            gpio10: Some(pins.gpio10),
+            gpio18: Some(pins.gpio18),
+            gpio19: Some(pins.gpio19),
+            gpio20: Some(pins.gpio20),
+            gpio21: Some(pins.gpio21),
+        }
+    }
+}
+
+impl GpioPins {
+    pub fn io_pin(&mut self, pin: u8) -> anyhow::Result<gpio::AnyIOPin> {
+        let maybe_any_pin = match pin {
+            0 => self.gpio0.take().map(Into::into),
+            1 => self.gpio1.take().map(Into::into),
+            2 => self.gpio2.take().map(Into::into),
+            3 => self.gpio3.take().map(Into::into),
+            4 => self.gpio4.take().map(Into::into),
+            5 => self.gpio5.take().map(Into::into),
+            6 => self.gpio6.take().map(Into::into),
+            7 => self.gpio7.take().map(Into::into),
+            8 => self.gpio8.take().map(Into::into),
+            9 => self.gpio9.take().map(Into::into),
+            10 => self.gpio10.take().map(Into::into),
+            18 => self.gpio18.take().map(Into::into),
+            19 => self.gpio19.take().map(Into::into),
+            20 => self.gpio20.take().map(Into::into),
+            21 => self.gpio21.take().map(Into::into),
+            _ => bail!("Invalid GPIO pin number: {}", pin),
+        };
+
+        maybe_any_pin.ok_or_else(|| anyhow!("GPIO pin {} is already in use.", pin))
+    }
+}
+
+pub struct IoPins {
+    pins: GpioPins,
+    sda_pin: u8,
+    scl_pin: u8,
+}
+
+impl fmt::Debug for IoPins {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IoPins")
+            .field("sda_pin", &self.sda_pin)
+            .field("scl_pin", &self.scl_pin)
+            .finish_non_exhaustive()
+    }
+}
+
+impl IoPins {
+    pub fn sda_pin(&mut self) -> anyhow::Result<gpio::AnyIOPin> {
+        self.pins.io_pin(self.sda_pin)
+    }
+
+    pub fn scl_pin(&mut self) -> anyhow::Result<gpio::AnyIOPin> {
+        self.pins.io_pin(self.scl_pin)
+    }
+}
+
+pub fn io_pins(pins: gpio::Pins) -> anyhow::Result<IoPins> {
+    Ok(IoPins {
+        pins: pins.into(),
+        sda_pin: default_config()?.io.sda_pin,
+        scl_pin: default_config()?.io.scl_pin,
     })
 }
 
@@ -313,8 +394,8 @@ pub fn io_address() -> anyhow::Result<u8> {
     default_config().map(|config| config.io.address)
 }
 
-pub fn io_message() -> anyhow::Result<u8> {
-    default_config().map(|config| config.io.message)
+pub fn io_message() -> anyhow::Result<Vec<u8>> {
+    default_config().map(|config| config.io.message.clone())
 }
 
 pub fn io_baudrate() -> anyhow::Result<u32> {
