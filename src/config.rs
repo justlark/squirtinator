@@ -77,6 +77,7 @@ struct IoConfig {
     message: Vec<u8>,
     baudrate: u32,
     timeout: u32,
+    test_mode: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -404,6 +405,10 @@ pub fn io_baudrate() -> anyhow::Result<u32> {
 
 pub fn io_timeout() -> anyhow::Result<u32> {
     default_config().map(|config| config.io.timeout)
+}
+
+pub fn io_test_mode() -> anyhow::Result<bool> {
+    default_config().map(|config| config.io.test_mode)
 }
 
 pub fn wifi_client_config<P: NvsPartitionId>(

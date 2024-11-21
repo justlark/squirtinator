@@ -135,6 +135,7 @@ where
     let message = config::io_message()?;
     let baudrate = config::io_baudrate()?;
     let timeout = config::io_timeout()?;
+    let test_mode = config::io_test_mode()?;
 
     let i2c_config = i2c::I2cConfig {
         baudrate: baudrate.into(),
@@ -153,6 +154,8 @@ where
             message,
         );
 
-        driver.write(address, &message, timeout)?;
+        if !test_mode {
+            driver.write(address, &message, timeout)?;
+        }
     }
 }
